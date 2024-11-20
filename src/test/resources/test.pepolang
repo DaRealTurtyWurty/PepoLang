@@ -1,0 +1,35 @@
+class Test {
+    int a;
+    string b;
+
+    void main() {
+        a = 1;
+        b = "Hello, World!";
+        print(a);
+        print(b);
+
+        int c = add(1, 2);
+        print(c);
+
+        int d = add(3, 4);
+        print(d);
+
+        int e = c * d;
+        e *= 5;
+
+        if(e > 100) {
+            print("e is greater than 100");
+        } else {
+            print("e is less than or equal to 100");
+        }
+
+        while(e > 0) {
+            e -= 1;
+            print(e);
+        }
+    }
+
+    int add(int a, int b) {
+        return a + b;
+    }
+}
