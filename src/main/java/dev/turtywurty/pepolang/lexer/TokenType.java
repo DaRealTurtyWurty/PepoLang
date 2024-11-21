@@ -7,7 +7,9 @@ public enum TokenType {
     EOF,
     ILLEGAL,
     IDENTIFIER,
-    NUMBER,
+    NUMBER_INT,
+    NUMBER_FLOAT,
+    NUMBER_DOUBLE,
 
     STRING,
 

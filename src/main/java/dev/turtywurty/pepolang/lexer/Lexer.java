@@ -6,11 +6,8 @@ import java.util.Optional;
 // TODO: Circular Buffer
 // TODO: peek() and peek(k) methods
 // TODO: consume() and consume(k) methods
-// TODO: Add support for strings (might be quite complex because of escape characters)
-// TODO: Support for multi-line comments
 // TODO: Support for multi-line strings
 // TODO: Split the reader into a separate class that can take a string, byte[] or InputStream
-// TODO: Number literals should be parsed into their respective types depending on a suffix (f, d, l, etc.) - or default
 // TODO: Add support for binary, octal and hexadecimal literals
 // TODO: Support for unicode characters
 // TODO: Support for character literals
@@ -167,6 +164,7 @@ public class Lexer {
     }
 
     private Token readNumber(char currentChar) {
+        TokenType type = TokenType.NUMBER_INT;
         var number = new StringBuilder();
         do {
             number.append(currentChar);
@@ -175,10 +173,27 @@ public class Lexer {
                 break;
 
             currentChar = (char) this.src[this.pos];
+            if(currentChar == '.') {
+                type = TokenType.NUMBER_DOUBLE;
+            }
+
+            if(Character.toLowerCase(currentChar) == 'd') {
+                type = TokenType.NUMBER_DOUBLE;
+                number.append(currentChar);
+                this.pos++;
+                break;
+            }
+
+            if(Character.toLowerCase(currentChar) == 'f') {
+                type = TokenType.NUMBER_FLOAT;
+                number.append(currentChar);
+                this.pos++;
+                break;
+            }
         } while (Character.isDigit(currentChar) || (currentChar == '.' && number.indexOf(".") == -1 && Character.isDigit((char) this.src[this.pos + 1])));
 
         this.pos--;
-        return new Token(TokenType.NUMBER, number.toString(), this.pos - 1);
+        return new Token(type, number.toString(), this.pos - 1);
     }
 
     private static char parseEscapeSequence(char escapeChar) {
