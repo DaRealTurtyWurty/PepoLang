@@ -18,6 +18,8 @@ public class LexerTest {
         assertEmptyValueToken(lexer.nextToken(), TokenType.DIV);
         assertEmptyValueToken(lexer.nextToken(), TokenType.ASSIGN);
         assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
+        assertEmptyValueToken(lexer.nextToken(), TokenType.LT);
+        assertEmptyValueToken(lexer.nextToken(), TokenType.GT);
         assertEmptyValueToken(lexer.nextToken(), TokenType.EOF);
     }
 
@@ -47,10 +49,28 @@ public class LexerTest {
     }
 
     @Test
+    public void testMultilineComments() {
+        Lexer lexer = new Lexer("foo /* this is a\nmultiline comment */ bar");
+        assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "foo");
+        assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "bar");
+        assertEmptyValueToken(lexer.nextToken(), TokenType.EOF);
+
+        lexer = new Lexer("foo /* this is a\nmultiline comment\nthat spans multiple lines */ bar");
+        assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "foo");
+        assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "bar");
+        assertEmptyValueToken(lexer.nextToken(), TokenType.EOF);
+
+        lexer = new Lexer("foo /* this is an\nillegal\nmultiline comment * bar");
+        assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "foo");
+        assertToken(lexer.nextToken(), TokenType.ILLEGAL, ""); // but really should be "this is an\nillegal\nmultiline comment * bar"
+        assertEmptyValueToken(lexer.nextToken(), TokenType.EOF);
+    }
+
+    @Test
     public void testKeywords() {
         var content = """
             void int float bool string 40 if else while for + return break continue true false null import class foo;
-            barvoid integer / floaty boolean stringy 69.420 // if else \n, (int jazz) 
+            barvoid integer / floaty boolean stringy 69.420 // if else \n, (int jazz)
             iffy elsey whiley fory returny breaky continuey truey falsey nully importy classy
             """;
 
@@ -193,12 +213,7 @@ public class LexerTest {
             assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "b");
             assertEmptyValueToken(lexer.nextToken(), TokenType.ASSIGN);
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ILLEGAL);
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "Hello");
-            assertEmptyValueToken(lexer.nextToken(), TokenType.COMMA);
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "World");
-            assertEmptyValueToken(lexer.nextToken(), TokenType.NOT);
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ILLEGAL);
+            assertToken(lexer.nextToken(), TokenType.STRING, "Hello, World!");
             assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "print");
             assertEmptyValueToken(lexer.nextToken(), TokenType.LPAREN);
@@ -261,13 +276,7 @@ public class LexerTest {
             assertEmptyValueToken(lexer.nextToken(), TokenType.LBRACE);
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "print");
             assertEmptyValueToken(lexer.nextToken(), TokenType.LPAREN);
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ILLEGAL);
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "e");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "is");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "greater");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "than");
-            assertToken(lexer.nextToken(), TokenType.NUMBER, "100");
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ILLEGAL);
+            assertToken(lexer.nextToken(), TokenType.STRING, "e is greater than 100");
             assertEmptyValueToken(lexer.nextToken(), TokenType.RPAREN);
             assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
             assertEmptyValueToken(lexer.nextToken(), TokenType.RBRACE);
@@ -275,16 +284,7 @@ public class LexerTest {
             assertEmptyValueToken(lexer.nextToken(), TokenType.LBRACE);
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "print");
             assertEmptyValueToken(lexer.nextToken(), TokenType.LPAREN);
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ILLEGAL);
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "e");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "is");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "less");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "than");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "or");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "equal");
-            assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "to");
-            assertToken(lexer.nextToken(), TokenType.NUMBER, "100");
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ILLEGAL);
+            assertToken(lexer.nextToken(), TokenType.STRING, "e is less than or equal to 100");
             assertEmptyValueToken(lexer.nextToken(), TokenType.RPAREN);
             assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
             assertEmptyValueToken(lexer.nextToken(), TokenType.RBRACE);
@@ -328,6 +328,21 @@ public class LexerTest {
         } catch (IOException exception) {
             exception.printStackTrace();
         }
+    }
+
+    @Test
+    public void testString() {
+        var lexer = new Lexer("\"Hello, World!\"");
+        assertToken(lexer.nextToken(), TokenType.STRING, "Hello, World!");
+        assertEmptyValueToken(lexer.nextToken(), TokenType.EOF);
+
+        lexer = new Lexer("\"Hello, World!\\n\"");
+        assertToken(lexer.nextToken(), TokenType.STRING, "Hello, World!\n");
+        assertEmptyValueToken(lexer.nextToken(), TokenType.EOF);
+
+        lexer = new Lexer("\"Hello, World!\n\"");
+        assertToken(lexer.nextToken(), TokenType.ILLEGAL, "Hello, World!");
+        assertEmptyValueToken(lexer.nextToken(), TokenType.EOF);
     }
 
     private void assertToken(Token token, TokenType expectedType, String expectedValue) {

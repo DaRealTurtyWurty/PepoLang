@@ -9,6 +9,8 @@ public enum TokenType {
     IDENTIFIER,
     NUMBER,
 
+    STRING,
+
     SEMICOLON,
     LPAREN,
     RPAREN,

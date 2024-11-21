@@ -1,6 +1,7 @@
 package dev.turtywurty.pepolang.lexer;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 // TODO: Circular Buffer
 // TODO: peek() and peek(k) methods
@@ -36,16 +37,12 @@ public class Lexer {
             }
 
             if(current == '/') {
-                if((this.pos + 1 < this.src.length) && this.src[this.pos + 1] == '/') { // reached a comment
-                    while (this.pos < this.src.length && this.src[this.pos] != '\n') {
-                        this.pos++;
-                    }
-
+                Optional<Token> divToken = readSlash();
+                if(divToken.isEmpty())
                     continue;
-                } else {
-                    toReturn = new Token(TokenType.DIV, "", this.pos);
-                    break;
-                }
+
+                toReturn = divToken.get();
+                break;
             }
 
             if(TokenType.SINGLE_CHAR_TOKENS.containsKey(current)) {
@@ -53,42 +50,18 @@ public class Lexer {
                 break;
             }
 
+            if(current == '"') {
+                toReturn = readString();
+                break;
+            }
+
             if(canStartIdentifier(current)) {
-                var identifier = new StringBuilder();
-                do {
-                    identifier.append(current);
-
-                    if(this.pos++ >= this.src.length)
-                        break;
-
-                    current = (char) this.src[this.pos];
-                } while (isValidForIdentifier(current));
-
-                this.pos--;
-
-                String identifierStr = identifier.toString();
-                if(TokenType.KEYWORDS.containsKey(identifierStr)) {
-                    toReturn = new Token(TokenType.KEYWORDS.get(identifierStr), "", this.pos - 1);
-                    break;
-                }
-
-                toReturn = new Token(TokenType.IDENTIFIER, identifierStr, this.pos - 1);
+                toReturn = readIdentifier(current);
                 break;
             }
 
             if(Character.isDigit(current)) {
-                var number = new StringBuilder();
-                do {
-                    number.append(current);
-
-                    if(this.pos++ >= this.src.length)
-                        break;
-
-                    current = (char) this.src[this.pos];
-                } while (Character.isDigit(current) || (current == '.' && number.indexOf(".") == -1 && Character.isDigit((char) this.src[this.pos + 1])));
-
-                this.pos--;
-                toReturn = new Token(TokenType.NUMBER, number.toString(), this.pos - 1);
+                toReturn = readNumber(current);
                 break;
             }
 
@@ -100,7 +73,126 @@ public class Lexer {
             toReturn = new Token(TokenType.EOF, "", this.pos);
 
         this.pos++;
+        System.out.println(toReturn);
         return toReturn;
+    }
+
+    private Optional<Token> readSlash() {
+        if(this.pos + 1 >= this.src.length)
+            return Optional.of(new Token(TokenType.DIV, "", this.pos));
+
+        char nextChar = (char) this.src[this.pos + 1];
+        if(nextChar == '/') { // reached a comment
+            while (this.pos < this.src.length && this.src[this.pos] != '\n') {
+                this.pos++;
+            }
+
+            this.pos++;
+            return Optional.empty();
+        }
+
+        if(nextChar == '*') { // reached a multi-line comment
+            boolean reachedCommentEnd = false;
+            while(this.pos < this.src.length) {
+                if(this.src[this.pos] == '*') { // maybe reached the end?
+                    if(this.pos + 1 < this.src.length && this.src[this.pos + 1] == '/') { // check by looking for a */
+                        this.pos++;
+                        reachedCommentEnd = true;
+                        break;
+                    }
+                }
+
+                this.pos++;
+            }
+
+            if(reachedCommentEnd) {
+                this.pos++;
+                return Optional.empty();
+            } else {
+                return Optional.of(new Token(TokenType.ILLEGAL, "", this.pos));
+            }
+        }
+
+        return Optional.of(new Token(TokenType.DIV, "", this.pos));
+    }
+
+    private Token readIdentifier(char currentChar) {
+        var identifier = new StringBuilder();
+        do {
+            identifier.append(currentChar);
+
+            if(++this.pos >= this.src.length)
+                break;
+
+            currentChar = (char) this.src[this.pos];
+        } while (isValidForIdentifier(currentChar));
+
+        this.pos--;
+
+        String identifierStr = identifier.toString();
+        if(TokenType.KEYWORDS.containsKey(identifierStr)) {
+            return new Token(TokenType.KEYWORDS.get(identifierStr), "", this.pos - 1);
+        }
+
+        return new Token(TokenType.IDENTIFIER, identifierStr, this.pos - 1);
+    }
+
+    private Token readString() {
+        var str = new StringBuilder();
+        this.pos++;
+
+        while(this.pos < this.src.length) {
+            char current = (char) this.src[this.pos];
+            if(current == '"') {
+                return new Token(TokenType.STRING, str.toString(), this.pos - 1);
+            }
+
+            if(current == '\n') {
+                return new Token(TokenType.ILLEGAL, str.toString(), this.pos++);
+            }
+
+            if(current == '\\') {
+                this.pos++;
+                if(this.pos >= this.src.length) break;
+                current = (char) this.src[this.pos];
+                str.append(parseEscapeSequence(current));
+            } else {
+                str.append(current);
+            }
+
+            this.pos++;
+        }
+
+        return new Token(TokenType.ILLEGAL, str.toString(), this.pos);
+    }
+
+    private Token readNumber(char currentChar) {
+        var number = new StringBuilder();
+        do {
+            number.append(currentChar);
+
+            if(++this.pos >= this.src.length)
+                break;
+
+            currentChar = (char) this.src[this.pos];
+        } while (Character.isDigit(currentChar) || (currentChar == '.' && number.indexOf(".") == -1 && Character.isDigit((char) this.src[this.pos + 1])));
+
+        this.pos--;
+        return new Token(TokenType.NUMBER, number.toString(), this.pos - 1);
+    }
+
+    private static char parseEscapeSequence(char escapeChar) {
+        return switch (escapeChar) {
+            case 'n' -> '\n';
+            case 't' -> '\t';
+            case 'r' -> '\r';
+            case '0' -> '\0';
+            case 'b' -> '\b';
+            case '\\' -> '\\';
+            case '"' -> '"';
+            case '\'' -> '\'';
+            default -> escapeChar;
+        };
     }
 
     private static boolean canStartIdentifier(int character) {
