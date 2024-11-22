@@ -33,31 +33,36 @@ public class Lexer {
                 continue;
             }
 
-            if(current == '/') {
+            if (current == '/') {
                 Optional<Token> divToken = readSlash();
-                if(divToken.isEmpty())
+                if (divToken.isEmpty())
                     continue;
 
                 toReturn = divToken.get();
                 break;
             }
 
-            if(TokenType.SINGLE_CHAR_TOKENS.containsKey(current)) {
+            if (TokenType.SINGLE_CHAR_TOKENS.containsKey(current)) {
                 toReturn = new Token(TokenType.SINGLE_CHAR_TOKENS.get(current), "", this.pos);
                 break;
             }
 
-            if(current == '"') {
+            if (current == '"') {
                 toReturn = readString();
                 break;
             }
 
-            if(canStartIdentifier(current)) {
+            if (current == '\'') {
+                toReturn = readCharacter();
+                break;
+            }
+
+            if (canStartIdentifier(current)) {
                 toReturn = readIdentifier(current);
                 break;
             }
 
-            if(Character.isDigit(current)) {
+            if (Character.isDigit(current)) {
                 toReturn = readNumber(current);
                 break;
             }
@@ -66,7 +71,7 @@ public class Lexer {
             break;
         }
 
-        if(toReturn == null)
+        if (toReturn == null)
             toReturn = new Token(TokenType.EOF, "", this.pos);
 
         this.pos++;
@@ -75,11 +80,11 @@ public class Lexer {
     }
 
     private Optional<Token> readSlash() {
-        if(this.pos + 1 >= this.src.length)
+        if (this.pos + 1 >= this.src.length)
             return Optional.of(new Token(TokenType.DIV, "", this.pos));
 
         char nextChar = (char) this.src[this.pos + 1];
-        if(nextChar == '/') { // reached a comment
+        if (nextChar == '/') { // reached a comment
             while (this.pos < this.src.length && this.src[this.pos] != '\n') {
                 this.pos++;
             }
@@ -88,11 +93,11 @@ public class Lexer {
             return Optional.empty();
         }
 
-        if(nextChar == '*') { // reached a multi-line comment
+        if (nextChar == '*') { // reached a multi-line comment
             boolean reachedCommentEnd = false;
-            while(this.pos < this.src.length) {
-                if(this.src[this.pos] == '*') { // maybe reached the end?
-                    if(this.pos + 1 < this.src.length && this.src[this.pos + 1] == '/') { // check by looking for a */
+            while (this.pos < this.src.length) {
+                if (this.src[this.pos] == '*') { // maybe reached the end?
+                    if (this.pos + 1 < this.src.length && this.src[this.pos + 1] == '/') { // check by looking for a */
                         this.pos++;
                         reachedCommentEnd = true;
                         break;
@@ -102,7 +107,7 @@ public class Lexer {
                 this.pos++;
             }
 
-            if(reachedCommentEnd) {
+            if (reachedCommentEnd) {
                 this.pos++;
                 return Optional.empty();
             } else {
@@ -118,7 +123,7 @@ public class Lexer {
         do {
             identifier.append(currentChar);
 
-            if(++this.pos >= this.src.length)
+            if (++this.pos >= this.src.length)
                 break;
 
             currentChar = (char) this.src[this.pos];
@@ -127,7 +132,7 @@ public class Lexer {
         this.pos--;
 
         String identifierStr = identifier.toString();
-        if(TokenType.KEYWORDS.containsKey(identifierStr)) {
+        if (TokenType.KEYWORDS.containsKey(identifierStr)) {
             return new Token(TokenType.KEYWORDS.get(identifierStr), "", this.pos - 1);
         }
 
@@ -138,19 +143,19 @@ public class Lexer {
         var str = new StringBuilder();
         this.pos++;
 
-        while(this.pos < this.src.length) {
+        while (this.pos < this.src.length) {
             char current = (char) this.src[this.pos];
-            if(current == '"') {
+            if (current == '"') {
                 return new Token(TokenType.STRING, str.toString(), this.pos - 1);
             }
 
-            if(current == '\n') {
+            if (current == '\n') {
                 return new Token(TokenType.ILLEGAL, str.toString(), this.pos++);
             }
 
-            if(current == '\\') {
+            if (current == '\\') {
                 this.pos++;
-                if(this.pos >= this.src.length) break;
+                if (this.pos >= this.src.length) break;
                 current = (char) this.src[this.pos];
                 str.append(parseEscapeSequence(current));
             } else {
@@ -163,28 +168,75 @@ public class Lexer {
         return new Token(TokenType.ILLEGAL, str.toString(), this.pos);
     }
 
+    private Token readCharacter() {
+        this.pos++;
+
+        if (this.pos >= this.src.length)
+            return new Token(TokenType.ILLEGAL, "", this.pos);
+
+        char current = (char) this.src[this.pos];
+        if (current == '\\') {
+            if (this.pos + 1 < this.src.length && this.src[this.pos + 1] == 'u') {
+                this.pos++;
+
+                var builder = new StringBuilder("\\u");
+                while (++this.pos < this.src.length && builder.length() < 6) {
+                    current = (char) this.src[this.pos];
+                    if (isValidUnicodeCharacter(current)) {
+                        builder.append(current);
+                    } else {
+                        break;
+                    }
+                }
+
+                if (builder.length() != 6)
+                    return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
+
+                char nextChar = (char) this.src[this.pos];
+                if (nextChar != '\'')
+                    return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
+
+                try {
+                    return new Token(TokenType.CHARACTER, builder.toString(), this.pos);
+                } catch (NumberFormatException ignored) {
+                    return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
+                }
+            } else {
+                if (++this.pos >= this.src.length)
+                    return new Token(TokenType.ILLEGAL, "", this.pos);
+
+                current = (char) this.src[this.pos];
+                return new Token(TokenType.CHARACTER, String.valueOf(parseEscapeSequence(current)), this.pos++);
+            }
+        } else if (++this.pos < this.src.length && (char) this.src[this.pos] == '\'') {
+            return new Token(TokenType.CHARACTER, String.valueOf(current), this.pos);
+        }
+
+        return new Token(TokenType.ILLEGAL, String.valueOf(current), this.pos - 1);
+    }
+
     private Token readNumber(char currentChar) {
         TokenType type = TokenType.NUMBER_INT;
         var number = new StringBuilder();
         do {
             number.append(currentChar);
 
-            if(++this.pos >= this.src.length)
+            if (++this.pos >= this.src.length)
                 break;
 
             currentChar = (char) this.src[this.pos];
-            if(currentChar == '.') {
+            if (currentChar == '.') {
                 type = TokenType.NUMBER_DOUBLE;
             }
 
-            if(Character.toLowerCase(currentChar) == 'd') {
+            if (Character.toLowerCase(currentChar) == 'd') {
                 type = TokenType.NUMBER_DOUBLE;
                 number.append(currentChar);
                 this.pos++;
                 break;
             }
 
-            if(Character.toLowerCase(currentChar) == 'f') {
+            if (Character.toLowerCase(currentChar) == 'f') {
                 type = TokenType.NUMBER_FLOAT;
                 number.append(currentChar);
                 this.pos++;
@@ -194,6 +246,10 @@ public class Lexer {
 
         this.pos--;
         return new Token(type, number.toString(), this.pos - 1);
+    }
+
+    private static boolean isValidUnicodeCharacter(char character) {
+        return Character.isDigit(character) || (character >= 'A' && character <= 'F') || (character >= 'a' && character <= 'f');
     }
 
     private static char parseEscapeSequence(char escapeChar) {

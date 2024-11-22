@@ -12,6 +12,7 @@ public enum TokenType {
     NUMBER_DOUBLE,
 
     STRING,
+    CHARACTER,
 
     SEMICOLON,
     LPAREN,
