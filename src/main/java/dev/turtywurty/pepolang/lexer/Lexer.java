@@ -197,7 +197,7 @@ public class Lexer {
                     return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
 
                 try {
-                    return new Token(TokenType.CHARACTER, builder.toString(), this.pos);
+                    return new Token(TokenType.CHARACTER, new String(Character.toChars(Integer.parseInt(builder.substring(2), 16))), this.pos);
                 } catch (NumberFormatException ignored) {
                     return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
                 }
@@ -206,13 +206,99 @@ public class Lexer {
                     return new Token(TokenType.ILLEGAL, "", this.pos);
 
                 current = (char) this.src[this.pos];
-                return new Token(TokenType.CHARACTER, String.valueOf(parseEscapeSequence(current)), this.pos++);
+                Character escape = parseEscapeSequence(current);
+                return new Token(
+                        escape != null ? TokenType.CHARACTER : TokenType.ILLEGAL,
+                        escape != null ? String.valueOf(escape) : "",
+                        this.pos++);
             }
-        } else if (++this.pos < this.src.length && (char) this.src[this.pos] == '\'') {
-            return new Token(TokenType.CHARACTER, String.valueOf(current), this.pos);
+        } else {
+            int byte1 = this.src[this.pos] & 0xFF;
+            if ((byte1 & 0x80) != 0) { // Checks if the most significant bit is 1
+                try {
+                    int codePoint = decodeUtf8CodePoint();
+                    while (this.src[this.pos] != '\'') {
+                        this.pos++;
+                        if(this.pos >= this.src.length)
+                            return new Token(TokenType.ILLEGAL, "", --this.pos);
+                    }
+
+                    return new Token(TokenType.CHARACTER, new String(Character.toChars(codePoint)), this.pos);
+                } catch (IllegalArgumentException ignored) {
+                    while (this.src[this.pos] != '\'') {
+                        this.pos++;
+                        if(this.pos >= this.src.length)
+                            return new Token(TokenType.ILLEGAL, "", --this.pos);
+                    }
+
+                    return new Token(TokenType.ILLEGAL, "", this.pos);
+                }
+            } else if (++this.pos < this.src.length && (char) this.src[this.pos] == '\'') {
+                return new Token(TokenType.CHARACTER, String.valueOf(current), this.pos);
+            }
         }
 
         return new Token(TokenType.ILLEGAL, String.valueOf(current), this.pos - 1);
+    }
+
+    private int decodeUtf8CodePoint() throws IllegalArgumentException {
+        if (this.pos >= this.src.length)
+            throw new IllegalArgumentException("End of input reached");
+
+        int byte1 = this.src[this.pos] & 0xFF; // 0xFF is because bytes in java are signed, and we need unsigned (0-255)
+        int codePoint;
+
+        if((byte1 & 0x80) == 0) { // Checks the most significant bit is 0 (0xxxxxxx) - a single byte character
+            codePoint = byte1;
+        } else if((byte1 & 0xE0) == 0xC0) { // Checks the two most significant bits are 110xxxxx - a 2 byte character
+            if (this.pos + 1 >= this.src.length)
+                throw new IllegalArgumentException("End of input reached");
+
+            int byte2 = this.src[++this.pos] & 0xFF;
+            if((byte2 & 0xC0) != 0x80) // Checks the two most significant bits are 10xxxxxx
+                throw new IllegalArgumentException("Invalid UTF-8 character");
+
+            codePoint = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F); // 1st byte contributes 5 bits, 2nd byte contributes 6 bits
+
+            // Overlong encoding check: Two-byte sequences must represent code points >= 0x80
+            if (codePoint < 0x80)
+                throw new IllegalArgumentException("Overlong UTF-8 encoding");
+        } else if ((byte1 & 0xF0) == 0xE0) { // Checks the four most significant bits are 1110xxxx - a 3 byte character
+            if (this.pos + 2 >= this.src.length)
+                throw new IllegalArgumentException("End of input reached");
+
+            int byte2 = this.src[++this.pos] & 0xFF;
+            int byte3 = this.src[++this.pos] & 0xFF;
+
+            if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80)
+                throw new IllegalArgumentException("Invalid UTF-8 character");
+
+            codePoint = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F); // 1st byte contributes 4 bits, 2nd byte contributes 6 bits, 3rd byte contributes 6 bits
+
+            // Overlong encoding check: Three-byte sequences must represent code points >= 0x800
+            if (codePoint < 0x800)
+                throw new IllegalArgumentException("Overlong UTF-8 encoding");
+        } else if((byte1 & 0xF8) == 0xF0) { // Checks the five most significant bits are 11110xxx - a 4 byte character
+            if (this.pos + 3 >= this.src.length)
+                throw new IllegalArgumentException("End of input reached");
+
+            int byte2 = this.src[++this.pos] & 0xFF;
+            int byte3 = this.src[++this.pos] & 0xFF;
+            int byte4 = this.src[++this.pos] & 0xFF;
+            if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || (byte4 & 0xC0) != 0x80)
+                throw new IllegalArgumentException("Invalid UTF-8 character");
+
+            codePoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F); // 1st byte contributes 3 bits, 2nd byte contributes 6 bits, 3rd byte contributes 6 bits, 4th byte contributes 6 bits
+
+            // Overlong encoding check: Four-byte sequences must represent code points >= 0x10000
+            if (codePoint < 0x10000 || codePoint > 0x10FFFF)
+                throw new IllegalArgumentException("Overlong or out-of-range UTF-8 encoding");
+        } else {
+            throw new IllegalArgumentException("Invalid UTF-8 character");
+        }
+
+        this.pos++;
+        return codePoint;
     }
 
     private Token readNumber(char currentChar) {
@@ -252,7 +338,7 @@ public class Lexer {
         return Character.isDigit(character) || (character >= 'A' && character <= 'F') || (character >= 'a' && character <= 'f');
     }
 
-    private static char parseEscapeSequence(char escapeChar) {
+    private static Character parseEscapeSequence(char escapeChar) {
         return switch (escapeChar) {
             case 'n' -> '\n';
             case 't' -> '\t';
@@ -262,7 +348,7 @@ public class Lexer {
             case '\\' -> '\\';
             case '"' -> '"';
             case '\'' -> '\'';
-            default -> escapeChar;
+            default -> null;
         };
     }
 
