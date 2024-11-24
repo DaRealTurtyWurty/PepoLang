@@ -348,10 +348,9 @@ public class Lexer {
                 integralLiteralLoop: while (++this.pos < this.src.length) {
                     currentChar = (char) this.src[this.pos];
 
-                    // TODO: these need to loop until whitespace is found (if its illegal)
                     switch (type) {
                         case NUMBER_OCTAL -> {
-                            if(Character.isWhitespace(currentChar))
+                            if(isTerminatingCharacter(currentChar))
                                 break integralLiteralLoop;
 
                             if(currentChar < '0' || currentChar > '7') {
@@ -360,7 +359,7 @@ public class Lexer {
                             }
                         }
                         case NUMBER_HEXADECIMAL -> {
-                            if(Character.isWhitespace(currentChar))
+                            if(isTerminatingCharacter(currentChar))
                                 break integralLiteralLoop;
 
                             if(!isHexadecimal(currentChar)) {
@@ -368,7 +367,7 @@ public class Lexer {
 
                                 while (++this.pos < this.src.length) {
                                     currentChar = (char) this.src[this.pos];
-                                    if(Character.isWhitespace(currentChar))
+                                    if(isTerminatingCharacter(currentChar))
                                         break;
 
                                     number.append(currentChar);
@@ -378,7 +377,7 @@ public class Lexer {
                             }
                         }
                         case NUMBER_BINARY -> {
-                            if(Character.isWhitespace(currentChar))
+                            if(isTerminatingCharacter(currentChar))
                                 break integralLiteralLoop;
 
                             if(currentChar != '0' && currentChar != '1') {
@@ -386,7 +385,7 @@ public class Lexer {
 
                                 while (++this.pos < this.src.length) {
                                     currentChar = (char) this.src[this.pos];
-                                    if(Character.isWhitespace(currentChar))
+                                    if(isTerminatingCharacter(currentChar))
                                         break;
 
                                     number.append(currentChar);
@@ -408,7 +407,7 @@ public class Lexer {
         }
 
         do {
-            if(Character.isWhitespace(currentChar))
+            if(isTerminatingCharacter(currentChar))
                 break;
 
             if(currentChar == '_') {
@@ -429,7 +428,7 @@ public class Lexer {
                 type = TokenType.ILLEGAL;
                 while (++this.pos < this.src.length) {
                     currentChar = (char) this.src[this.pos];
-                    if(Character.isWhitespace(currentChar))
+                    if(isTerminatingCharacter(currentChar))
                         break;
 
                     number.append(currentChar);
@@ -450,7 +449,7 @@ public class Lexer {
                     number.append(currentChar);
                     while (++this.pos < this.src.length) {
                         currentChar = (char) this.src[this.pos];
-                        if(Character.isWhitespace(currentChar))
+                        if(isTerminatingCharacter(currentChar))
                             break;
 
                         number.append(currentChar);
@@ -488,10 +487,8 @@ public class Lexer {
         if(this.pos < this.src.length && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
             currentChar = (char) this.src[this.pos];
 
-            // continue until we reach a whitespace character or the end of the input
-            // return an illegal token only if we find a non-whitespace character
             while (true) {
-                if(Character.isWhitespace(currentChar))
+                if(isTerminatingCharacter(currentChar))
                     break;
 
                 type = TokenType.ILLEGAL;
@@ -531,5 +528,9 @@ public class Lexer {
 
     private static boolean isValidForIdentifier(int character) {
         return canStartIdentifier(character) || Character.isDigit(character);
+    }
+
+    private static boolean isTerminatingCharacter(int character) {
+        return Character.isWhitespace(character) || TokenType.SINGLE_CHAR_TOKENS.containsKey((char) character);
     }
 }
