@@ -8,9 +8,7 @@ import java.util.Optional;
 // TODO: consume() and consume(k) methods
 // TODO: Support for multi-line strings
 // TODO: Split the reader into a separate class that can take a string, byte[] or InputStream
-// TODO: Add support for binary, octal and hexadecimal literals
 // TODO: Support for unicode characters
-// TODO: Support for character literals
 // TODO: Support for when double or triple characters are used for operators (e.g. ++, --, ==, !=, <=, >=, >>>, <<<, etc.)
 public class Lexer {
     private final byte[] src;
@@ -182,7 +180,7 @@ public class Lexer {
                 var builder = new StringBuilder("\\u");
                 while (++this.pos < this.src.length && builder.length() < 6) {
                     current = (char) this.src[this.pos];
-                    if (isValidUnicodeCharacter(current)) {
+                    if (isHexadecimal(current)) {
                         builder.append(current);
                     } else {
                         break;
@@ -304,37 +302,184 @@ public class Lexer {
     private Token readNumber(char currentChar) {
         TokenType type = TokenType.NUMBER_INT;
         var number = new StringBuilder();
-        do {
+
+        if(currentChar == '0' && this.pos + 1 < this.src.length) {
             number.append(currentChar);
+            currentChar = (char) this.src[++this.pos];
+            type = switch (Character.toLowerCase(currentChar)) {
+                case 'x' -> TokenType.NUMBER_HEXADECIMAL;
+                case 'b' -> TokenType.NUMBER_BINARY;
+                case '0', '1', '2', '3', '4', '5', '6', '7' -> TokenType.NUMBER_OCTAL;
+                case '.' -> TokenType.NUMBER_DOUBLE;
+                default -> type;
+            };
+
+            if(type.isNonDecimalIntegralLiteral()) {
+                number.append(currentChar);
+
+                integralLiteralLoop: while (++this.pos < this.src.length) {
+                    currentChar = (char) this.src[this.pos];
+
+                    // TODO: these need to loop until whitespace is found (if its illegal)
+                    switch (type) {
+                        case NUMBER_OCTAL -> {
+                            if(Character.isWhitespace(currentChar))
+                                break integralLiteralLoop;
+
+                            if(currentChar < '0' || currentChar > '7') {
+                                type = TokenType.NUMBER_INT;
+                                break integralLiteralLoop;
+                            }
+                        }
+                        case NUMBER_HEXADECIMAL -> {
+                            if(Character.isWhitespace(currentChar))
+                                break integralLiteralLoop;
+
+                            if(!isHexadecimal(currentChar)) {
+                                number.append(currentChar);
+
+                                while (++this.pos < this.src.length) {
+                                    currentChar = (char) this.src[this.pos];
+                                    if(Character.isWhitespace(currentChar))
+                                        break;
+
+                                    number.append(currentChar);
+                                }
+
+                                return new Token(TokenType.ILLEGAL, number.toString(), this.pos - 1);
+                            }
+                        }
+                        case NUMBER_BINARY -> {
+                            if(Character.isWhitespace(currentChar))
+                                break integralLiteralLoop;
+
+                            if(currentChar != '0' && currentChar != '1') {
+                                number.append(currentChar);
+
+                                while (++this.pos < this.src.length) {
+                                    currentChar = (char) this.src[this.pos];
+                                    if(Character.isWhitespace(currentChar))
+                                        break;
+
+                                    number.append(currentChar);
+                                }
+
+                                return new Token(TokenType.ILLEGAL, number.toString(), this.pos - 1);
+                            }
+                        }
+                    }
+
+                    number.append(currentChar);
+                }
+
+                if (type.isNonDecimalIntegralLiteral()) {
+                    this.pos--;
+                    return new Token(type, number.toString(), this.pos - 1);
+                }
+            }
+        }
+
+        do {
+            if(Character.isWhitespace(currentChar))
+                break;
+
+            if(currentChar == '_') {
+                if(this.pos + 1 >= this.src.length)
+                    return new Token(TokenType.ILLEGAL, number.toString(), this.pos);
+
+                currentChar = (char) this.src[++this.pos];
+                if(!Character.isDigit(currentChar))
+                    return new Token(TokenType.ILLEGAL, number.toString(), this.pos);
+
+                number.append(currentChar);
+                continue;
+            }
+
+            number.append(currentChar);
+
+            if(currentChar != '.' && !Character.isDigit(currentChar)) {
+                type = TokenType.ILLEGAL;
+                while (++this.pos < this.src.length) {
+                    currentChar = (char) this.src[this.pos];
+                    if(Character.isWhitespace(currentChar))
+                        break;
+
+                    number.append(currentChar);
+                }
+
+                break;
+            }
 
             if (++this.pos >= this.src.length)
                 break;
 
             currentChar = (char) this.src[this.pos];
+
             if (currentChar == '.') {
                 type = TokenType.NUMBER_DOUBLE;
-            }
+                if (number.indexOf(".") != -1) {
+                    type = TokenType.ILLEGAL;
+                    number.append(currentChar);
+                    while (++this.pos < this.src.length) {
+                        currentChar = (char) this.src[this.pos];
+                        if(Character.isWhitespace(currentChar))
+                            break;
 
-            if (Character.toLowerCase(currentChar) == 'd') {
+                        number.append(currentChar);
+                    }
+
+                    break;
+                }
+            } else if (Character.toLowerCase(currentChar) == 'd') {
                 type = TokenType.NUMBER_DOUBLE;
                 number.append(currentChar);
                 this.pos++;
                 break;
-            }
-
-            if (Character.toLowerCase(currentChar) == 'f') {
+            } else if (Character.toLowerCase(currentChar) == 'f') {
                 type = TokenType.NUMBER_FLOAT;
                 number.append(currentChar);
                 this.pos++;
                 break;
+            } else if (Character.toLowerCase(currentChar) == 'l') {
+                type = TokenType.NUMBER_LONG;
+                number.append(currentChar);
+                this.pos++;
+                break;
+            } else if (currentChar == '_') {
+                if(this.pos + 1 >= this.src.length)
+                    break;
+
+                currentChar = (char) this.src[++this.pos];
+                if(!Character.isDigit(currentChar))
+                    break;
+
+                number.append(currentChar);
             }
-        } while (Character.isDigit(currentChar) || (currentChar == '.' && number.indexOf(".") == -1 && Character.isDigit((char) this.src[this.pos + 1])));
+        } while (this.pos < this.src.length);
+
+        if(this.pos < this.src.length && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
+            currentChar = (char) this.src[this.pos];
+
+            // continue until we reach a whitespace character or the end of the input
+            // return an illegal token only if we find a non-whitespace character
+            while (true) {
+                if(Character.isWhitespace(currentChar))
+                    break;
+
+                type = TokenType.ILLEGAL;
+                number.append(currentChar);
+                if(++this.pos >= this.src.length)
+                    break;
+
+                currentChar = (char) this.src[this.pos];
+            }
+        }
 
         this.pos--;
         return new Token(type, number.toString(), this.pos - 1);
     }
 
-    private static boolean isValidUnicodeCharacter(char character) {
+    private static boolean isHexadecimal(char character) {
         return Character.isDigit(character) || (character >= 'A' && character <= 'F') || (character >= 'a' && character <= 'f');
     }
 

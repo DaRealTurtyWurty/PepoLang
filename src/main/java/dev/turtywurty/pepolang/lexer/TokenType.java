@@ -10,6 +10,10 @@ public enum TokenType {
     NUMBER_INT,
     NUMBER_FLOAT,
     NUMBER_DOUBLE,
+    NUMBER_LONG,
+    NUMBER_BINARY,
+    NUMBER_OCTAL,
+    NUMBER_HEXADECIMAL,
 
     STRING,
     CHARACTER,
@@ -90,4 +94,8 @@ public enum TokenType {
         put("import", KEYWORD_IMPORT);
         put("class", KEYWORD_CLASS);
     }};
+
+    public boolean isNonDecimalIntegralLiteral() {
+        return this == NUMBER_OCTAL || this == NUMBER_HEXADECIMAL || this == NUMBER_BINARY;
+    }
 }
