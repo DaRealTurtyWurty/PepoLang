@@ -6,7 +6,6 @@ import java.util.Optional;
 // TODO: Circular Buffer
 // TODO: peek() and peek(k) methods
 // TODO: consume() and consume(k) methods
-// TODO: Support for multi-line strings
 // TODO: Split the reader into a separate class that can take a string, byte[] or InputStream
 // TODO: Support for unicode characters
 // TODO: Support for when double or triple characters are used for operators (e.g. ++, --, ==, !=, <=, >=, >>>, <<<, etc.)
@@ -52,6 +51,11 @@ public class Lexer {
 
             if (current == '\'') {
                 toReturn = readCharacter();
+                break;
+            }
+
+            if(current == '`') {
+                toReturn = readMultiLineString();
                 break;
             }
 
@@ -150,6 +154,30 @@ public class Lexer {
             if (current == '\n') {
                 return new Token(TokenType.ILLEGAL, str.toString(), this.pos++);
             }
+
+            if (current == '\\') {
+                this.pos++;
+                if (this.pos >= this.src.length) break;
+                current = (char) this.src[this.pos];
+                str.append(parseEscapeSequence(current));
+            } else {
+                str.append(current);
+            }
+
+            this.pos++;
+        }
+
+        return new Token(TokenType.ILLEGAL, str.toString(), this.pos);
+    }
+
+    private Token readMultiLineString() {
+        var str = new StringBuilder();
+        this.pos++;
+
+        while (this.pos < this.src.length) {
+            char current = (char) this.src[this.pos];
+            if (current == '`')
+                return new Token(TokenType.MULTI_LINE_STRING, str.toString(), this.pos - 1);
 
             if (current == '\\') {
                 this.pos++;

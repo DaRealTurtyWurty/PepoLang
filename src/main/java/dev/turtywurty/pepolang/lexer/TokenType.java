@@ -16,6 +16,7 @@ public enum TokenType {
     NUMBER_HEXADECIMAL,
 
     STRING,
+    MULTI_LINE_STRING,
     CHARACTER,
 
     SEMICOLON,
