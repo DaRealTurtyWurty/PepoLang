@@ -3,10 +3,7 @@ package dev.turtywurty.pepolang.lexer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
-// TODO: Circular Buffer
-// TODO: peek() and peek(k) methods
-// TODO: consume() and consume(k) methods
-// TODO: Split the reader into a separate class that can take a string, byte[] or InputStream
+// TODO: Integrate source reader and ring buffer
 // TODO: Support for unicode characters
 // TODO: Support for when double or triple characters are used for operators (e.g. ++, --, ==, !=, <=, >=, >>>, <<<, etc.)
 public class Lexer {
