@@ -5,12 +5,12 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 
-public class SourceReader implements StreamReader, Closeable {
-    private final ByteArrayInputStream src;
-    private int pos;
+public class SourceReader implements StreamReader {
+    private final byte[] src;
+    private int pos = -1;
 
     public SourceReader(byte[] content) {
-        this.src = new ByteArrayInputStream(content);
+        this.src = content;
     }
 
     public SourceReader(String str) {
@@ -18,41 +18,31 @@ public class SourceReader implements StreamReader, Closeable {
     }
 
     public SourceReader(InputStream stream) throws IOException {
-        this.src = new ByteArrayInputStream(stream.readAllBytes());
-    }
-
-    @Override
-    public void close() throws IOException {
-        this.src.close();
+        this.src = stream.readAllBytes();
     }
 
     @Override
     public char peek(int k) {
-        if (this.pos + k >= this.src.available()) {
+        if (this.pos + k >= this.src.length) {
             return '\0';
         }
 
-        this.src.mark(this.pos);
-        this.src.skip(k);
-        char toReturn = (char) this.src.read();
-        this.src.reset();
-        return toReturn;
+        return (char) this.src[this.pos + k];
     }
 
     @Override
     public char peek() {
-        return peek(0);
+        return peek(1);
     }
 
     @Override
     public char consume(int k) {
-        if (this.pos + k >= this.src.available()) {
+        if (this.pos + k >= this.src.length) {
             return '\0';
         }
 
-        this.src.skip(k);
         this.pos += k;
-        return (char) this.src.read();
+        return (char) this.src[this.pos];
     }
 
     @Override
@@ -65,6 +55,10 @@ public class SourceReader implements StreamReader, Closeable {
     }
 
     public boolean hasNext() {
-        return this.pos < this.src.available();
+        return this.pos < this.src.length - 1;
+    }
+
+    public boolean hasNext(int k) {
+        return this.pos + k < this.src.length;
     }
 }
