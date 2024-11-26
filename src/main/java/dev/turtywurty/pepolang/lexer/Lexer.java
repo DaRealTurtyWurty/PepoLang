@@ -7,11 +7,10 @@ import java.util.Optional;
 // TODO: Support for unicode characters
 // TODO: Support for when double or triple characters are used for operators (e.g. ++, --, ==, !=, <=, >=, >>>, <<<, etc.)
 public class Lexer {
-    private final byte[] src;
-    private int pos;
+    private final SourceReader reader;
 
     public Lexer(byte[] content) {
-        this.src = content;
+        this.reader = new SourceReader(content);
     }
 
     public Lexer(String str) {
@@ -20,12 +19,10 @@ public class Lexer {
 
     public Token nextToken() {
         Token toReturn = null;
-        while (this.pos < this.src.length) {
-            char current = (char) this.src[this.pos];
-            if (Character.isWhitespace(current)) {
-                this.pos++;
+        while (this.reader.hasNext()) {
+            char current = this.reader.consume();
+            if (Character.isWhitespace(current))
                 continue;
-            }
 
             if (current == '/') {
                 Optional<Token> divToken = readSlash();
@@ -37,7 +34,7 @@ public class Lexer {
             }
 
             if (TokenType.SINGLE_CHAR_TOKENS.containsKey(current)) {
-                toReturn = new Token(TokenType.SINGLE_CHAR_TOKENS.get(current), "", this.pos);
+                toReturn = new Token(TokenType.SINGLE_CHAR_TOKENS.get(current), "", this.reader.getPos());
                 break;
             }
 
@@ -66,55 +63,52 @@ public class Lexer {
                 break;
             }
 
-            toReturn = new Token(TokenType.ILLEGAL, "", this.pos);
+            toReturn = new Token(TokenType.ILLEGAL, "", this.reader.getPos());
             break;
         }
 
         if (toReturn == null)
-            toReturn = new Token(TokenType.EOF, "", this.pos);
+            toReturn = new Token(TokenType.EOF, "", this.reader.getPos());
 
-        this.pos++;
         System.out.println(toReturn);
         return toReturn;
     }
 
     private Optional<Token> readSlash() {
-        if (this.pos + 1 >= this.src.length)
-            return Optional.of(new Token(TokenType.DIV, "", this.pos));
+        if (!this.reader.hasNext())
+            return Optional.of(new Token(TokenType.DIV, "", this.reader.getPos()));
 
-        char nextChar = (char) this.src[this.pos + 1];
+        char nextChar = this.reader.peek();
         if (nextChar == '/') { // reached a comment
-            while (this.pos < this.src.length && this.src[this.pos] != '\n') {
-                this.pos++;
+            while (this.reader.hasNext()) {
+                if(this.reader.consume() == '\n')
+                    break;
             }
 
-            this.pos++;
             return Optional.empty();
         }
 
         if (nextChar == '*') { // reached a multi-line comment
             boolean reachedCommentEnd = false;
-            while (this.pos < this.src.length) {
-                if (this.src[this.pos] == '*') { // maybe reached the end?
-                    if (this.pos + 1 < this.src.length && this.src[this.pos + 1] == '/') { // check by looking for a */
-                        this.pos++;
+            while (this.reader.hasNext()) {
+                if (this.reader.consume() == '*') { // maybe reached the end?
+                    if (this.reader.hasNext() && this.reader.peek() == '/') { // check by looking for a */
+                        this.reader.consume();
                         reachedCommentEnd = true;
                         break;
                     }
                 }
-
-                this.pos++;
             }
 
             if (reachedCommentEnd) {
-                this.pos++;
+                this.reader.consume();
                 return Optional.empty();
             } else {
-                return Optional.of(new Token(TokenType.ILLEGAL, "", this.pos));
+                return Optional.of(new Token(TokenType.ILLEGAL, "", this.reader.getPos()));
             }
         }
 
-        return Optional.of(new Token(TokenType.DIV, "", this.pos));
+        return Optional.of(new Token(TokenType.DIV, "", this.reader.getPos()));
     }
 
     private Token readIdentifier(char currentChar) {
@@ -122,89 +116,84 @@ public class Lexer {
         do {
             identifier.append(currentChar);
 
-            if (++this.pos >= this.src.length)
+            currentChar = this.reader.peek();
+            if (!isValidForIdentifier(currentChar))
                 break;
 
-            currentChar = (char) this.src[this.pos];
-        } while (isValidForIdentifier(currentChar));
-
-        this.pos--;
+            currentChar = this.reader.consume();
+        } while (this.reader.hasNext());
 
         String identifierStr = identifier.toString();
-        if (TokenType.KEYWORDS.containsKey(identifierStr)) {
-            return new Token(TokenType.KEYWORDS.get(identifierStr), "", this.pos - 1);
-        }
+        if (TokenType.KEYWORDS.containsKey(identifierStr))
+            return new Token(TokenType.KEYWORDS.get(identifierStr), "", this.reader.getPos());
 
-        return new Token(TokenType.IDENTIFIER, identifierStr, this.pos - 1);
+        return new Token(TokenType.IDENTIFIER, identifierStr, this.reader.getPos());
     }
 
     private Token readString() {
         var str = new StringBuilder();
-        this.pos++;
 
-        while (this.pos < this.src.length) {
-            char current = (char) this.src[this.pos];
-            if (current == '"') {
-                return new Token(TokenType.STRING, str.toString(), this.pos - 1);
-            }
+        while (this.reader.hasNext()) {
+            char current = this.reader.consume();
+            if (current == '"')
+                return new Token(TokenType.STRING, str.toString(), this.reader.getPos() - 1);
 
             if (current == '\n') {
-                return new Token(TokenType.ILLEGAL, str.toString(), this.pos++);
+                while (this.reader.hasNext()) {
+                    current = this.reader.consume();
+                    if (current == '"')
+                        return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
+                }
+
+                return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
             }
 
             if (current == '\\') {
-                this.pos++;
-                if (this.pos >= this.src.length) break;
-                current = (char) this.src[this.pos];
+                if (!this.reader.hasNext())
+                    break;
+
+                current = this.reader.consume();
                 str.append(parseEscapeSequence(current));
             } else {
                 str.append(current);
             }
-
-            this.pos++;
         }
 
-        return new Token(TokenType.ILLEGAL, str.toString(), this.pos);
+        return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
     }
 
     private Token readMultiLineString() {
         var str = new StringBuilder();
-        this.pos++;
 
-        while (this.pos < this.src.length) {
-            char current = (char) this.src[this.pos];
+        while (this.reader.hasNext()) {
+            char current = this.reader.consume();
             if (current == '`')
-                return new Token(TokenType.MULTI_LINE_STRING, str.toString(), this.pos - 1);
+                return new Token(TokenType.MULTI_LINE_STRING, str.toString(), this.reader.getPos() - 1);
 
             if (current == '\\') {
-                this.pos++;
-                if (this.pos >= this.src.length) break;
-                current = (char) this.src[this.pos];
+                if (!this.reader.hasNext())
+                    break;
+
+                current = this.reader.consume();
                 str.append(parseEscapeSequence(current));
             } else {
                 str.append(current);
             }
-
-            this.pos++;
         }
 
-        return new Token(TokenType.ILLEGAL, str.toString(), this.pos);
+        return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
     }
 
     private Token readCharacter() {
-        this.pos++;
+        if (!this.reader.hasNext())
+            return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
 
-        if (this.pos >= this.src.length)
-            return new Token(TokenType.ILLEGAL, "", this.pos);
-
-        char current = (char) this.src[this.pos];
+        char current = this.reader.consume();
         if (current == '\\') {
-            if (this.pos + 1 < this.src.length && this.src[this.pos + 1] == 'u') {
-                this.pos++;
-
+            if (this.reader.hasNext() && this.reader.consume() == 'u') {
                 var builder = new StringBuilder("\\u");
-                while (++this.pos < this.src.length && builder.length() < 6) {
-                    current = (char) this.src[this.pos];
+                while (this.reader.hasNext() && builder.length() < 6) {
+                    current = this.reader.consume();
                     if (isHexadecimal(current)) {
                         builder.append(current);
                     } else {
@@ -213,71 +202,72 @@ public class Lexer {
                 }
 
                 if (builder.length() != 6)
-                    return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
+                    return new Token(TokenType.ILLEGAL, builder.toString(), this.reader.getPos());
 
-                char nextChar = (char) this.src[this.pos];
+                char nextChar = this.reader.consume();
                 if (nextChar != '\'')
-                    return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
+                    return new Token(TokenType.ILLEGAL, builder.toString(), this.reader.getPos());
 
                 try {
-                    return new Token(TokenType.CHARACTER, new String(Character.toChars(Integer.parseInt(builder.substring(2), 16))), this.pos);
+                    return new Token(TokenType.CHARACTER,
+                            new String(Character.toChars(Integer.parseInt(builder.substring(2), 16))),
+                            this.reader.getPos());
                 } catch (NumberFormatException ignored) {
-                    return new Token(TokenType.ILLEGAL, builder.toString(), this.pos);
+                    return new Token(TokenType.ILLEGAL, builder.toString(), this.reader.getPos());
                 }
             } else {
-                if (++this.pos >= this.src.length)
-                    return new Token(TokenType.ILLEGAL, "", this.pos);
+                if (!this.reader.hasNext())
+                    return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
 
-                current = (char) this.src[this.pos];
+                current = this.reader.consume();
                 Character escape = parseEscapeSequence(current);
                 return new Token(
                         escape != null ? TokenType.CHARACTER : TokenType.ILLEGAL,
                         escape != null ? String.valueOf(escape) : "",
-                        this.pos++);
+                        this.reader.getPos());
             }
         } else {
-            int byte1 = this.src[this.pos] & 0xFF;
+            char nextChar = this.reader.peek();
+            int byte1 = nextChar & 0xFF;
             if ((byte1 & 0x80) != 0) { // Checks if the most significant bit is 1
                 try {
                     int codePoint = decodeUtf8CodePoint();
-                    while (this.src[this.pos] != '\'') {
-                        this.pos++;
-                        if(this.pos >= this.src.length)
-                            return new Token(TokenType.ILLEGAL, "", --this.pos);
+                    while (this.reader.hasNext() && this.reader.consume() != '\'') {
+                        if(!this.reader.hasNext())
+                            return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
                     }
 
-                    return new Token(TokenType.CHARACTER, new String(Character.toChars(codePoint)), this.pos);
+                    return new Token(TokenType.CHARACTER, new String(Character.toChars(codePoint)), this.reader.getPos());
                 } catch (IllegalArgumentException ignored) {
-                    while (this.src[this.pos] != '\'') {
-                        this.pos++;
-                        if(this.pos >= this.src.length)
-                            return new Token(TokenType.ILLEGAL, "", --this.pos);
+                    while (this.reader.hasNext() && this.reader.consume() != '\'') {
+                        if(!this.reader.hasNext())
+                            return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
                     }
 
-                    return new Token(TokenType.ILLEGAL, "", this.pos);
+                    return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
                 }
-            } else if (++this.pos < this.src.length && (char) this.src[this.pos] == '\'') {
-                return new Token(TokenType.CHARACTER, String.valueOf(current), this.pos);
+            } else if (this.reader.hasNext() && this.reader.consume() == '\'') {
+                return new Token(TokenType.CHARACTER, String.valueOf(current), this.reader.getPos());
             }
         }
 
-        return new Token(TokenType.ILLEGAL, String.valueOf(current), this.pos - 1);
+        return new Token(TokenType.ILLEGAL, String.valueOf(current), this.reader.getPos());
     }
 
     private int decodeUtf8CodePoint() throws IllegalArgumentException {
-        if (this.pos >= this.src.length)
+        if (!this.reader.hasNext())
             throw new IllegalArgumentException("End of input reached");
 
-        int byte1 = this.src[this.pos] & 0xFF; // 0xFF is because bytes in java are signed, and we need unsigned (0-255)
+        int byte1 = this.reader.consume() & 0xFF; // 0xFF is because bytes in java are signed, and we need unsigned (0-255)
         int codePoint;
 
         if((byte1 & 0x80) == 0) { // Checks the most significant bit is 0 (0xxxxxxx) - a single byte character
             codePoint = byte1;
         } else if((byte1 & 0xE0) == 0xC0) { // Checks the two most significant bits are 110xxxxx - a 2 byte character
-            if (this.pos + 1 >= this.src.length)
+            if (!this.reader.hasNext())
                 throw new IllegalArgumentException("End of input reached");
 
-            int byte2 = this.src[++this.pos] & 0xFF;
+            int byte2 = this.reader.consume() & 0xFF;
             if((byte2 & 0xC0) != 0x80) // Checks the two most significant bits are 10xxxxxx
                 throw new IllegalArgumentException("Invalid UTF-8 character");
 
@@ -287,11 +277,11 @@ public class Lexer {
             if (codePoint < 0x80)
                 throw new IllegalArgumentException("Overlong UTF-8 encoding");
         } else if ((byte1 & 0xF0) == 0xE0) { // Checks the four most significant bits are 1110xxxx - a 3 byte character
-            if (this.pos + 2 >= this.src.length)
+            if (!this.reader.hasNext(2))
                 throw new IllegalArgumentException("End of input reached");
 
-            int byte2 = this.src[++this.pos] & 0xFF;
-            int byte3 = this.src[++this.pos] & 0xFF;
+            int byte2 = this.reader.consume() & 0xFF;
+            int byte3 = this.reader.consume() & 0xFF;
 
             if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80)
                 throw new IllegalArgumentException("Invalid UTF-8 character");
@@ -302,12 +292,12 @@ public class Lexer {
             if (codePoint < 0x800)
                 throw new IllegalArgumentException("Overlong UTF-8 encoding");
         } else if((byte1 & 0xF8) == 0xF0) { // Checks the five most significant bits are 11110xxx - a 4 byte character
-            if (this.pos + 3 >= this.src.length)
+            if (!this.reader.hasNext(3))
                 throw new IllegalArgumentException("End of input reached");
 
-            int byte2 = this.src[++this.pos] & 0xFF;
-            int byte3 = this.src[++this.pos] & 0xFF;
-            int byte4 = this.src[++this.pos] & 0xFF;
+            int byte2 = this.reader.consume() & 0xFF;
+            int byte3 = this.reader.consume() & 0xFF;
+            int byte4 = this.reader.consume() & 0xFF;
             if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || (byte4 & 0xC0) != 0x80)
                 throw new IllegalArgumentException("Invalid UTF-8 character");
 
@@ -320,7 +310,6 @@ public class Lexer {
             throw new IllegalArgumentException("Invalid UTF-8 character");
         }
 
-        this.pos++;
         return codePoint;
     }
 
@@ -328,9 +317,9 @@ public class Lexer {
         TokenType type = TokenType.NUMBER_INT;
         var number = new StringBuilder();
 
-        if(currentChar == '0' && this.pos + 1 < this.src.length) {
+        if(currentChar == '0' && this.reader.hasNext()) {
             number.append(currentChar);
-            currentChar = (char) this.src[++this.pos];
+            currentChar = this.reader.consume();
             type = switch (Character.toLowerCase(currentChar)) {
                 case 'x' -> TokenType.NUMBER_HEXADECIMAL;
                 case 'b' -> TokenType.NUMBER_BINARY;
@@ -342,8 +331,8 @@ public class Lexer {
             if(type.isNonDecimalIntegralLiteral()) {
                 number.append(currentChar);
 
-                integralLiteralLoop: while (++this.pos < this.src.length) {
-                    currentChar = (char) this.src[this.pos];
+                integralLiteralLoop: while (this.reader.hasNext()) {
+                    currentChar = this.reader.consume();
 
                     switch (type) {
                         case NUMBER_OCTAL -> {
@@ -362,15 +351,15 @@ public class Lexer {
                             if(!isHexadecimal(currentChar)) {
                                 number.append(currentChar);
 
-                                while (++this.pos < this.src.length) {
-                                    currentChar = (char) this.src[this.pos];
+                                while (this.reader.hasNext()) {
+                                    currentChar = this.reader.consume();
                                     if(isTerminatingCharacter(currentChar))
                                         break;
 
                                     number.append(currentChar);
                                 }
 
-                                return new Token(TokenType.ILLEGAL, number.toString(), this.pos - 1);
+                                return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
                             }
                         }
                         case NUMBER_BINARY -> {
@@ -380,15 +369,15 @@ public class Lexer {
                             if(currentChar != '0' && currentChar != '1') {
                                 number.append(currentChar);
 
-                                while (++this.pos < this.src.length) {
-                                    currentChar = (char) this.src[this.pos];
+                                while (this.reader.hasNext()) {
+                                    currentChar = this.reader.consume();
                                     if(isTerminatingCharacter(currentChar))
                                         break;
 
                                     number.append(currentChar);
                                 }
 
-                                return new Token(TokenType.ILLEGAL, number.toString(), this.pos - 1);
+                                return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
                             }
                         }
                     }
@@ -396,10 +385,8 @@ public class Lexer {
                     number.append(currentChar);
                 }
 
-                if (type.isNonDecimalIntegralLiteral()) {
-                    this.pos--;
-                    return new Token(type, number.toString(), this.pos - 1);
-                }
+                if (type.isNonDecimalIntegralLiteral())
+                    return new Token(type, number.toString(), this.reader.getPos() - 1);
             }
         }
 
@@ -408,23 +395,24 @@ public class Lexer {
                 break;
 
             if(currentChar == '_') {
-                if(this.pos + 1 >= this.src.length)
-                    return new Token(TokenType.ILLEGAL, number.toString(), this.pos);
+                if(!this.reader.hasNext())
+                    return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
 
-                currentChar = (char) this.src[++this.pos];
+                currentChar = this.reader.consume();
                 if(!Character.isDigit(currentChar))
-                    return new Token(TokenType.ILLEGAL, number.toString(), this.pos);
+                    return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
 
                 number.append(currentChar);
                 continue;
             }
 
             number.append(currentChar);
+            this.reader.consume();
 
             if(currentChar != '.' && !Character.isDigit(currentChar)) {
                 type = TokenType.ILLEGAL;
-                while (++this.pos < this.src.length) {
-                    currentChar = (char) this.src[this.pos];
+                while (this.reader.hasNext()) {
+                    currentChar = this.reader.consume();
                     if(isTerminatingCharacter(currentChar))
                         break;
 
@@ -434,18 +422,21 @@ public class Lexer {
                 break;
             }
 
-            if (++this.pos >= this.src.length)
+            if (!this.reader.hasNext())
                 break;
 
-            currentChar = (char) this.src[this.pos];
+            currentChar = this.reader.peek();
+
+            if(isTerminatingCharacter(currentChar))
+                break;
 
             if (currentChar == '.') {
                 type = TokenType.NUMBER_DOUBLE;
                 if (number.indexOf(".") != -1) {
                     type = TokenType.ILLEGAL;
                     number.append(currentChar);
-                    while (++this.pos < this.src.length) {
-                        currentChar = (char) this.src[this.pos];
+                    while (this.reader.hasNext()) {
+                        currentChar = this.reader.consume();
                         if(isTerminatingCharacter(currentChar))
                             break;
 
@@ -457,32 +448,29 @@ public class Lexer {
             } else if (Character.toLowerCase(currentChar) == 'd') {
                 type = TokenType.NUMBER_DOUBLE;
                 number.append(currentChar);
-                this.pos++;
                 break;
             } else if (Character.toLowerCase(currentChar) == 'f') {
                 type = TokenType.NUMBER_FLOAT;
                 number.append(currentChar);
-                this.pos++;
                 break;
             } else if (Character.toLowerCase(currentChar) == 'l') {
                 type = TokenType.NUMBER_LONG;
                 number.append(currentChar);
-                this.pos++;
                 break;
             } else if (currentChar == '_') {
-                if(this.pos + 1 >= this.src.length)
+                if(!this.reader.hasNext())
                     break;
 
-                currentChar = (char) this.src[++this.pos];
+                currentChar = this.reader.consume();
                 if(!Character.isDigit(currentChar))
                     break;
 
                 number.append(currentChar);
             }
-        } while (this.pos < this.src.length);
+        } while (this.reader.hasNext());
 
-        if(this.pos < this.src.length && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
-            currentChar = (char) this.src[this.pos];
+        if(this.reader.hasNext() && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
+            currentChar = this.reader.consume();
 
             while (true) {
                 if(isTerminatingCharacter(currentChar))
@@ -490,15 +478,14 @@ public class Lexer {
 
                 type = TokenType.ILLEGAL;
                 number.append(currentChar);
-                if(++this.pos >= this.src.length)
+                if(!this.reader.hasNext())
                     break;
 
-                currentChar = (char) this.src[this.pos];
+                currentChar = this.reader.consume();
             }
         }
 
-        this.pos--;
-        return new Token(type, number.toString(), this.pos - 1);
+        return new Token(type, number.toString(), this.reader.getPos() - 1);
     }
 
     private static boolean isHexadecimal(char character) {
