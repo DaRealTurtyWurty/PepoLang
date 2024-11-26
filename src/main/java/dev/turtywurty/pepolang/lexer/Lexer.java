@@ -390,42 +390,37 @@ public class Lexer {
             }
         }
 
-        do {
-            if(isTerminatingCharacter(currentChar))
-                break;
+        if(isTerminatingCharacter(currentChar))
+            return new Token(TokenType.NUMBER_INT, number.toString(), this.reader.getPos() - 1);
 
-            if(currentChar == '_') {
-                if(!this.reader.hasNext())
-                    return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
+        if(currentChar == '_') {
+            if(!this.reader.hasNext())
+                return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
 
-                currentChar = this.reader.consume();
-                if(!Character.isDigit(currentChar))
-                    return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
-
-                number.append(currentChar);
-                continue;
-            }
+            currentChar = this.reader.consume();
+            if(!Character.isDigit(currentChar))
+                return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
 
             number.append(currentChar);
-            this.reader.consume();
+        } else {
+            number.append(currentChar);
+        }
 
-            if(currentChar != '.' && !Character.isDigit(currentChar)) {
-                type = TokenType.ILLEGAL;
-                while (this.reader.hasNext()) {
-                    currentChar = this.reader.consume();
-                    if(isTerminatingCharacter(currentChar))
-                        break;
+        if(currentChar != '.' && !Character.isDigit(currentChar)) {
+            type = TokenType.ILLEGAL;
+            while (this.reader.hasNext()) {
+                currentChar = this.reader.consume();
+                if(isTerminatingCharacter(currentChar))
+                    break;
 
-                    number.append(currentChar);
-                }
-
-                break;
+                number.append(currentChar);
             }
 
-            if (!this.reader.hasNext())
-                break;
+            return new Token(type, number.toString(), this.reader.getPos() - 1);
+        }
 
-            currentChar = this.reader.peek();
+        while (reader.hasNext()) {
+            currentChar = this.reader.consume();
 
             if(isTerminatingCharacter(currentChar))
                 break;
@@ -445,6 +440,8 @@ public class Lexer {
 
                     break;
                 }
+
+                number.append(currentChar);
             } else if (Character.toLowerCase(currentChar) == 'd') {
                 type = TokenType.NUMBER_DOUBLE;
                 number.append(currentChar);
@@ -466,8 +463,10 @@ public class Lexer {
                     break;
 
                 number.append(currentChar);
+            } else {
+                number.append(currentChar);
             }
-        } while (this.reader.hasNext());
+        };
 
         if(this.reader.hasNext() && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
             currentChar = this.reader.consume();
