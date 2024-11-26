@@ -419,17 +419,30 @@ public class Lexer {
             return new Token(type, number.toString(), this.reader.getPos() - 1);
         }
 
-        while (reader.hasNext()) {
+        while (reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
             currentChar = this.reader.consume();
 
-            if(isTerminatingCharacter(currentChar))
-                break;
+            while (currentChar == '_') {
+                if (!this.reader.hasNext())
+                    break;
+
+                currentChar = this.reader.consume();
+                if(!Character.isDigit(currentChar)) {
+                    number.append(currentChar);
+                    while (this.reader.hasNext()) {
+                        currentChar = this.reader.peek();
+                        if(!isTerminatingCharacter(currentChar))
+                            currentChar = this.reader.consume();
+                    }
+                }
+            }
+
+            number.append(currentChar);
 
             if (currentChar == '.') {
                 type = TokenType.NUMBER_DOUBLE;
-                if (number.indexOf(".") != -1) {
+                if (countOccurrences(number, '.') > 1) {
                     type = TokenType.ILLEGAL;
-                    number.append(currentChar);
                     while (this.reader.hasNext()) {
                         currentChar = this.reader.consume();
                         if(isTerminatingCharacter(currentChar))
@@ -440,47 +453,31 @@ public class Lexer {
 
                     break;
                 }
-
-                number.append(currentChar);
             } else if (Character.toLowerCase(currentChar) == 'd') {
                 type = TokenType.NUMBER_DOUBLE;
-                number.append(currentChar);
                 break;
             } else if (Character.toLowerCase(currentChar) == 'f') {
                 type = TokenType.NUMBER_FLOAT;
-                number.append(currentChar);
                 break;
             } else if (Character.toLowerCase(currentChar) == 'l') {
                 type = TokenType.NUMBER_LONG;
-                number.append(currentChar);
                 break;
-            } else if (currentChar == '_') {
-                if(!this.reader.hasNext())
-                    break;
+            } else if (!Character.isDigit(currentChar)) {
+                type = TokenType.ILLEGAL;
+                while (this.reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
+                    currentChar = this.reader.consume();
+                    number.append(currentChar);
+                }
 
-                currentChar = this.reader.consume();
-                if(!Character.isDigit(currentChar))
-                    break;
-
-                number.append(currentChar);
-            } else {
-                number.append(currentChar);
+                break;
             }
         };
 
         if(this.reader.hasNext() && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
-            currentChar = this.reader.consume();
-
-            while (true) {
-                if(isTerminatingCharacter(currentChar))
-                    break;
-
+            while (this.reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
+                currentChar = this.reader.consume();
                 type = TokenType.ILLEGAL;
                 number.append(currentChar);
-                if(!this.reader.hasNext())
-                    break;
-
-                currentChar = this.reader.consume();
             }
         }
 
@@ -515,5 +512,15 @@ public class Lexer {
 
     private static boolean isTerminatingCharacter(int character) {
         return Character.isWhitespace(character) || TokenType.SINGLE_CHAR_TOKENS.containsKey((char) character);
+    }
+
+    private static int countOccurrences(CharSequence string, char toCount) {
+        int count = 0;
+        for (int i = 0; i < string.length(); i++) {
+            if (string.charAt(i) == toCount)
+                count++;
+        }
+
+        return count;
     }
 }
