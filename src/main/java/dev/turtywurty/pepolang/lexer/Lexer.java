@@ -113,15 +113,12 @@ public class Lexer {
 
     private Token readIdentifier(char currentChar) {
         var identifier = new StringBuilder();
-        do {
-            identifier.append(currentChar);
+        identifier.append(currentChar);
 
-            currentChar = this.reader.peek();
-            if (!isValidForIdentifier(currentChar))
-                break;
-
+        while (this.reader.hasNext() && isValidForIdentifier(this.reader.peek())) {
             currentChar = this.reader.consume();
-        } while (this.reader.hasNext());
+            identifier.append(currentChar);
+        };
 
         String identifierStr = identifier.toString();
         if (TokenType.KEYWORDS.containsKey(identifierStr))
@@ -319,7 +316,7 @@ public class Lexer {
 
         if(currentChar == '0' && this.reader.hasNext()) {
             number.append(currentChar);
-            currentChar = this.reader.consume();
+            currentChar = this.reader.peek();
             type = switch (Character.toLowerCase(currentChar)) {
                 case 'x' -> TokenType.NUMBER_HEXADECIMAL;
                 case 'b' -> TokenType.NUMBER_BINARY;
@@ -329,33 +326,30 @@ public class Lexer {
             };
 
             if(type.isNonDecimalIntegralLiteral()) {
+                currentChar = this.reader.consume();
                 number.append(currentChar);
 
                 integralLiteralLoop: while (this.reader.hasNext()) {
+                    currentChar = this.reader.peek();
+
+                    if (isTerminatingCharacter(currentChar))
+                        break;
+
                     currentChar = this.reader.consume();
 
                     switch (type) {
                         case NUMBER_OCTAL -> {
-                            if(isTerminatingCharacter(currentChar))
-                                break integralLiteralLoop;
-
                             if(currentChar < '0' || currentChar > '7') {
                                 type = TokenType.NUMBER_INT;
                                 break integralLiteralLoop;
                             }
                         }
                         case NUMBER_HEXADECIMAL -> {
-                            if(isTerminatingCharacter(currentChar))
-                                break integralLiteralLoop;
-
                             if(!isHexadecimal(currentChar)) {
                                 number.append(currentChar);
 
-                                while (this.reader.hasNext()) {
+                                while (this.reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
                                     currentChar = this.reader.consume();
-                                    if(isTerminatingCharacter(currentChar))
-                                        break;
-
                                     number.append(currentChar);
                                 }
 
@@ -363,17 +357,11 @@ public class Lexer {
                             }
                         }
                         case NUMBER_BINARY -> {
-                            if(isTerminatingCharacter(currentChar))
-                                break integralLiteralLoop;
-
                             if(currentChar != '0' && currentChar != '1') {
                                 number.append(currentChar);
 
-                                while (this.reader.hasNext()) {
+                                while (this.reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
                                     currentChar = this.reader.consume();
-                                    if(isTerminatingCharacter(currentChar))
-                                        break;
-
                                     number.append(currentChar);
                                 }
 
