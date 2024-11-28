@@ -1,11 +1,30 @@
 package dev.turtywurty.pepolang.lexer;
 
-import java.io.IOException;
-
 public interface StreamReader {
-    char peek() throws IOException;
-    char peek(int k) throws IOException;
+    byte peekByte(int k);
+    byte consumeByte(int k);
+    
+    default byte peekByte() {
+        return peekByte(1);
+    }
+    
+    default char peek() {
+        return (char) peekByte();
+    }
+    
+    default char peek(int k) {
+        return (char) peekByte(k);
+    }
 
-    char consume() throws IOException;
-    char consume(int k) throws IOException;
+    default byte consumeByte() {
+        return consumeByte(1);
+    }
+    
+    default char consume(int k) {
+        return (char) consumeByte(k);
+    }
+    
+    default char consume() {
+        return (char) consumeByte();
+    }
 }
