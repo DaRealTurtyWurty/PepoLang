@@ -3,7 +3,6 @@ package dev.turtywurty.pepolang.lexer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
-// TODO: Integrate source reader and ring buffer
 // TODO: Support for unicode characters
 // TODO: Support for when double or triple characters are used for operators (e.g. ++, --, ==, !=, <=, >=, >>>, <<<, etc.)
 public class Lexer {
@@ -185,9 +184,11 @@ public class Lexer {
         if (!this.reader.hasNext())
             return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
 
-        char current = this.reader.consume();
+        char current = this.reader.peek();
         if (current == '\\') {
-            if (this.reader.hasNext() && this.reader.consume() == 'u') {
+            this.reader.consume();
+            if (this.reader.hasNext() && this.reader.peek() == 'u') {
+                this.reader.consume();
                 var builder = new StringBuilder("\\u");
                 while (this.reader.hasNext() && builder.length() < 6) {
                     current = this.reader.consume();
@@ -218,14 +219,14 @@ public class Lexer {
 
                 current = this.reader.consume();
                 Character escape = parseEscapeSequence(current);
+                boolean isNextCharValid = this.reader.hasNext() && this.reader.consume() == '\'';
                 return new Token(
-                        escape != null ? TokenType.CHARACTER : TokenType.ILLEGAL,
+                        escape != null && isNextCharValid ? TokenType.CHARACTER : TokenType.ILLEGAL,
                         escape != null ? String.valueOf(escape) : "",
                         this.reader.getPos());
             }
         } else {
-            char nextChar = this.reader.peek();
-            int byte1 = nextChar & 0xFF;
+            int byte1 = this.reader.peekByte() & 0xFF;
             if ((byte1 & 0x80) != 0) { // Checks if the most significant bit is 1
                 try {
                     int codePoint = decodeUtf8CodePoint();
@@ -243,7 +244,10 @@ public class Lexer {
 
                     return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
                 }
-            } else if (this.reader.hasNext() && this.reader.consume() == '\'') {
+            }
+
+            current = this.reader.consume();
+            if (this.reader.hasNext() && this.reader.consume() == '\'') {
                 return new Token(TokenType.CHARACTER, String.valueOf(current), this.reader.getPos());
             }
         }
@@ -255,7 +259,7 @@ public class Lexer {
         if (!this.reader.hasNext())
             throw new IllegalArgumentException("End of input reached");
 
-        int byte1 = this.reader.consume() & 0xFF; // 0xFF is because bytes in java are signed, and we need unsigned (0-255)
+        int byte1 = this.reader.consumeByte() & 0xFF; // 0xFF is because bytes in java are signed, and we need unsigned (0-255)
         int codePoint;
 
         if((byte1 & 0x80) == 0) { // Checks the most significant bit is 0 (0xxxxxxx) - a single byte character
@@ -264,7 +268,7 @@ public class Lexer {
             if (!this.reader.hasNext())
                 throw new IllegalArgumentException("End of input reached");
 
-            int byte2 = this.reader.consume() & 0xFF;
+            int byte2 = this.reader.consumeByte() & 0xFF;
             if((byte2 & 0xC0) != 0x80) // Checks the two most significant bits are 10xxxxxx
                 throw new IllegalArgumentException("Invalid UTF-8 character");
 
@@ -277,8 +281,8 @@ public class Lexer {
             if (!this.reader.hasNext(2))
                 throw new IllegalArgumentException("End of input reached");
 
-            int byte2 = this.reader.consume() & 0xFF;
-            int byte3 = this.reader.consume() & 0xFF;
+            int byte2 = this.reader.consumeByte() & 0xFF;
+            int byte3 = this.reader.consumeByte() & 0xFF;
 
             if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80)
                 throw new IllegalArgumentException("Invalid UTF-8 character");
@@ -292,9 +296,9 @@ public class Lexer {
             if (!this.reader.hasNext(3))
                 throw new IllegalArgumentException("End of input reached");
 
-            int byte2 = this.reader.consume() & 0xFF;
-            int byte3 = this.reader.consume() & 0xFF;
-            int byte4 = this.reader.consume() & 0xFF;
+            int byte2 = this.reader.consumeByte() & 0xFF;
+            int byte3 = this.reader.consumeByte() & 0xFF;
+            int byte4 = this.reader.consumeByte() & 0xFF;
             if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || (byte4 & 0xC0) != 0x80)
                 throw new IllegalArgumentException("Invalid UTF-8 character");
 

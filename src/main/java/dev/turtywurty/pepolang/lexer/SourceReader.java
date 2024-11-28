@@ -1,10 +1,9 @@
 package dev.turtywurty.pepolang.lexer;
 
-import java.io.ByteArrayInputStream;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 
+// TODO: Integrate ring buffer for better performance
 public class SourceReader implements StreamReader {
     private final byte[] src;
     private int pos = -1;
@@ -22,32 +21,20 @@ public class SourceReader implements StreamReader {
     }
 
     @Override
-    public char peek(int k) {
-        if (this.pos + k >= this.src.length) {
+    public byte peekByte(int k) {
+        if (this.pos + k >= this.src.length)
             return '\0';
-        }
 
-        return (char) this.src[this.pos + k];
+        return this.src[this.pos + k];
     }
 
     @Override
-    public char peek() {
-        return peek(1);
-    }
-
-    @Override
-    public char consume(int k) {
-        if (this.pos + k >= this.src.length) {
+    public byte consumeByte(int k) {
+        if (this.pos + k >= this.src.length)
             return '\0';
-        }
 
         this.pos += k;
-        return (char) this.src[this.pos];
-    }
-
-    @Override
-    public char consume() {
-        return consume(1);
+        return this.src[this.pos];
     }
 
     public int getPos() {
