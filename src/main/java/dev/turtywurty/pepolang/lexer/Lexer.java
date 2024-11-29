@@ -3,7 +3,6 @@ package dev.turtywurty.pepolang.lexer;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
-// TODO: Support for unicode characters
 // TODO: Support for when double or triple characters are used for operators (e.g. ++, --, ==, !=, <=, >=, >>>, <<<, etc.)
 public class Lexer {
     private final SourceReader reader;
@@ -149,7 +148,39 @@ public class Lexer {
                     break;
 
                 current = this.reader.consume();
-                str.append(parseEscapeSequence(current));
+                if (current == 'u') {
+                    var builder = new StringBuilder("\\u");
+                    while (this.reader.hasNext() && builder.length() < 6) {
+                        current = this.reader.consume();
+                        if (isHexadecimal(current)) {
+                            builder.append(current);
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if (builder.length() != 6)
+                        return new Token(TokenType.ILLEGAL, builder.toString(), this.reader.getPos());
+
+                    str.append(new String(Character.toChars(Integer.parseInt(builder.substring(2), 16))));
+                    continue;
+                }
+
+                Character escape = parseEscapeSequence(current);
+                if(escape == null) {
+                    str.append(current);
+                    while (this.reader.hasNext()) {
+                        current = this.reader.consume();
+                        if (current == '"')
+                            return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
+
+                        str.append(current);
+                    }
+
+                    return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
+                }
+
+                str.append(escape);
             } else {
                 str.append(current);
             }
@@ -171,7 +202,39 @@ public class Lexer {
                     break;
 
                 current = this.reader.consume();
-                str.append(parseEscapeSequence(current));
+                if (current == 'u') {
+                    var builder = new StringBuilder("\\u");
+                    while (this.reader.hasNext() && builder.length() < 6) {
+                        current = this.reader.consume();
+                        if (isHexadecimal(current)) {
+                            builder.append(current);
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if (builder.length() != 6)
+                        return new Token(TokenType.ILLEGAL, builder.toString(), this.reader.getPos());
+
+                    str.append(new String(Character.toChars(Integer.parseInt(builder.substring(2), 16))));
+                    continue;
+                }
+
+                Character escape = parseEscapeSequence(current);
+                if(escape == null) {
+                    str.append(current);
+                    while (this.reader.hasNext()) {
+                        current = this.reader.consume();
+                        if (current == '`')
+                            return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
+
+                        str.append(current);
+                    }
+
+                    return new Token(TokenType.ILLEGAL, str.toString(), this.reader.getPos());
+                }
+
+                str.append(escape);
             } else {
                 str.append(current);
             }
