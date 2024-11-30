@@ -40,8 +40,7 @@ public class LexerTest {
         assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
 
         assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "bar");
-        assertEmptyValueToken(lexer.nextToken(), TokenType.DIV);
-        assertEmptyValueToken(lexer.nextToken(), TokenType.ASSIGN);
+        assertEmptyValueToken(lexer.nextToken(), TokenType.DIV_EQUAL);
         assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "foo");
         assertEmptyValueToken(lexer.nextToken(), TokenType.MUL);
         assertToken(lexer.nextToken(), TokenType.NUMBER_INT, "2");
@@ -138,8 +137,7 @@ public class LexerTest {
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "d");
             assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "e");
-            assertEmptyValueToken(lexer.nextToken(), TokenType.MUL);
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ASSIGN);
+            assertEmptyValueToken(lexer.nextToken(), TokenType.MUL_EQUAL);
             assertToken(lexer.nextToken(), TokenType.NUMBER_INT, "5");
             assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
             assertEmptyValueToken(lexer.nextToken(), TokenType.KEYWORD_IF);
@@ -171,8 +169,7 @@ public class LexerTest {
             assertEmptyValueToken(lexer.nextToken(), TokenType.RPAREN);
             assertEmptyValueToken(lexer.nextToken(), TokenType.LBRACE);
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "e");
-            assertEmptyValueToken(lexer.nextToken(), TokenType.SUB);
-            assertEmptyValueToken(lexer.nextToken(), TokenType.ASSIGN);
+            assertEmptyValueToken(lexer.nextToken(), TokenType.MINUS_EQUAL);
             assertToken(lexer.nextToken(), TokenType.NUMBER_INT, "1");
             assertEmptyValueToken(lexer.nextToken(), TokenType.SEMICOLON);
             assertToken(lexer.nextToken(), TokenType.IDENTIFIER, "print");

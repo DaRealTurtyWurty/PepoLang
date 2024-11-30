@@ -7,7 +7,7 @@ import static dev.turtywurty.pepolang.lexer.LexerTestUtils.assertEmptyValueToken
 public class SingleCharTest {
     @Test
     public void testSingleCharacterTokens() {
-        Lexer lexer = new Lexer("+-*/=;<>");
+        Lexer lexer = new Lexer("+ - * / = ; < >");
         assertEmptyValueToken(lexer.nextToken(), TokenType.ADD);
         assertEmptyValueToken(lexer.nextToken(), TokenType.SUB);
         assertEmptyValueToken(lexer.nextToken(), TokenType.MUL);

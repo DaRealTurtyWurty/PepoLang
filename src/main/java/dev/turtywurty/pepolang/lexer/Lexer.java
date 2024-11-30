@@ -1,9 +1,10 @@
 package dev.turtywurty.pepolang.lexer;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
-// TODO: Support for when double or triple characters are used for operators (e.g. ++, --, ==, !=, <=, >=, >>>, <<<, etc.)
 public class Lexer {
     private final SourceReader reader;
 
@@ -31,6 +32,14 @@ public class Lexer {
                 break;
             }
 
+            if (TokenType.MULTI_CHAR_TOKENS.containsKey(current)) {
+                Optional<Token> multiCharToken = readMultiChar(current);
+                if (multiCharToken.isPresent()) {
+                    toReturn = multiCharToken.get();
+                    break;
+                }
+            }
+
             if (TokenType.SINGLE_CHAR_TOKENS.containsKey(current)) {
                 toReturn = new Token(TokenType.SINGLE_CHAR_TOKENS.get(current), "", this.reader.getPos());
                 break;
@@ -46,7 +55,7 @@ public class Lexer {
                 break;
             }
 
-            if(current == '`') {
+            if (current == '`') {
                 toReturn = readMultiLineString();
                 break;
             }
@@ -72,6 +81,39 @@ public class Lexer {
         return toReturn;
     }
 
+    private Optional<Token> readMultiChar(char current) {
+        List<Map.Entry<String, TokenType>> possibleTokens = TokenType.MULTI_CHAR_TOKENS.get(current)
+                .stream()
+                .sorted((a, b) -> Integer.compare(b.getKey().length(), a.getKey().length()))
+                .toList();
+
+        String longestMatch = null;
+        TokenType matchType = null;
+        for (Map.Entry<String, TokenType> possibleToken : possibleTokens) {
+            String possibleTokenKey = possibleToken.getKey();
+            if (this.reader.hasNext(possibleTokenKey.length() - 1)) {
+                for (int i = 0; i < possibleTokenKey.length(); i++) {
+                    if (this.reader.peek(i) != possibleTokenKey.charAt(i))
+                        break;
+
+                    if (i == possibleTokenKey.length() - 1) {
+                        longestMatch = possibleTokenKey;
+                        matchType = possibleToken.getValue();
+                        break;
+                    }
+                }
+            }
+
+            if (longestMatch != null) {
+                this.reader.consume(longestMatch.length());
+
+                return Optional.of(new Token(matchType, "", this.reader.getPos()));
+            }
+        }
+
+        return Optional.empty();
+    }
+
     private Optional<Token> readSlash() {
         if (!this.reader.hasNext())
             return Optional.of(new Token(TokenType.DIV, "", this.reader.getPos()));
@@ -79,7 +121,7 @@ public class Lexer {
         char nextChar = this.reader.peek();
         if (nextChar == '/') { // reached a comment
             while (this.reader.hasNext()) {
-                if(this.reader.consume() == '\n')
+                if (this.reader.consume() == '\n')
                     break;
             }
 
@@ -106,6 +148,11 @@ public class Lexer {
             }
         }
 
+        if (nextChar == '=') {
+            this.reader.consume();
+            return Optional.of(new Token(TokenType.DIV_EQUAL, "", this.reader.getPos()));
+        }
+
         return Optional.of(new Token(TokenType.DIV, "", this.reader.getPos()));
     }
 
@@ -116,7 +163,7 @@ public class Lexer {
         while (this.reader.hasNext() && isValidForIdentifier(this.reader.peek())) {
             currentChar = this.reader.consume();
             identifier.append(currentChar);
-        };
+        }
 
         String identifierStr = identifier.toString();
         if (TokenType.KEYWORDS.containsKey(identifierStr))
@@ -167,7 +214,7 @@ public class Lexer {
                 }
 
                 Character escape = parseEscapeSequence(current);
-                if(escape == null) {
+                if (escape == null) {
                     str.append(current);
                     while (this.reader.hasNext()) {
                         current = this.reader.consume();
@@ -221,7 +268,7 @@ public class Lexer {
                 }
 
                 Character escape = parseEscapeSequence(current);
-                if(escape == null) {
+                if (escape == null) {
                     str.append(current);
                     while (this.reader.hasNext()) {
                         current = this.reader.consume();
@@ -294,14 +341,14 @@ public class Lexer {
                 try {
                     int codePoint = decodeUtf8CodePoint();
                     while (this.reader.hasNext() && this.reader.consume() != '\'') {
-                        if(!this.reader.hasNext())
+                        if (!this.reader.hasNext())
                             return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
                     }
 
                     return new Token(TokenType.CHARACTER, new String(Character.toChars(codePoint)), this.reader.getPos());
                 } catch (IllegalArgumentException ignored) {
                     while (this.reader.hasNext() && this.reader.consume() != '\'') {
-                        if(!this.reader.hasNext())
+                        if (!this.reader.hasNext())
                             return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
                     }
 
@@ -325,14 +372,14 @@ public class Lexer {
         int byte1 = this.reader.consumeByte() & 0xFF; // 0xFF is because bytes in java are signed, and we need unsigned (0-255)
         int codePoint;
 
-        if((byte1 & 0x80) == 0) { // Checks the most significant bit is 0 (0xxxxxxx) - a single byte character
+        if ((byte1 & 0x80) == 0) { // Checks the most significant bit is 0 (0xxxxxxx) - a single byte character
             codePoint = byte1;
-        } else if((byte1 & 0xE0) == 0xC0) { // Checks the two most significant bits are 110xxxxx - a 2 byte character
+        } else if ((byte1 & 0xE0) == 0xC0) { // Checks the two most significant bits are 110xxxxx - a 2 byte character
             if (!this.reader.hasNext())
                 throw new IllegalArgumentException("End of input reached");
 
             int byte2 = this.reader.consumeByte() & 0xFF;
-            if((byte2 & 0xC0) != 0x80) // Checks the two most significant bits are 10xxxxxx
+            if ((byte2 & 0xC0) != 0x80) // Checks the two most significant bits are 10xxxxxx
                 throw new IllegalArgumentException("Invalid UTF-8 character");
 
             codePoint = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F); // 1st byte contributes 5 bits, 2nd byte contributes 6 bits
@@ -347,7 +394,7 @@ public class Lexer {
             int byte2 = this.reader.consumeByte() & 0xFF;
             int byte3 = this.reader.consumeByte() & 0xFF;
 
-            if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80)
+            if ((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80)
                 throw new IllegalArgumentException("Invalid UTF-8 character");
 
             codePoint = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F); // 1st byte contributes 4 bits, 2nd byte contributes 6 bits, 3rd byte contributes 6 bits
@@ -355,14 +402,14 @@ public class Lexer {
             // Overlong encoding check: Three-byte sequences must represent code points >= 0x800
             if (codePoint < 0x800)
                 throw new IllegalArgumentException("Overlong UTF-8 encoding");
-        } else if((byte1 & 0xF8) == 0xF0) { // Checks the five most significant bits are 11110xxx - a 4 byte character
+        } else if ((byte1 & 0xF8) == 0xF0) { // Checks the five most significant bits are 11110xxx - a 4 byte character
             if (!this.reader.hasNext(3))
                 throw new IllegalArgumentException("End of input reached");
 
             int byte2 = this.reader.consumeByte() & 0xFF;
             int byte3 = this.reader.consumeByte() & 0xFF;
             int byte4 = this.reader.consumeByte() & 0xFF;
-            if((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || (byte4 & 0xC0) != 0x80)
+            if ((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || (byte4 & 0xC0) != 0x80)
                 throw new IllegalArgumentException("Invalid UTF-8 character");
 
             codePoint = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F); // 1st byte contributes 3 bits, 2nd byte contributes 6 bits, 3rd byte contributes 6 bits, 4th byte contributes 6 bits
@@ -381,7 +428,7 @@ public class Lexer {
         TokenType type = TokenType.NUMBER_INT;
         var number = new StringBuilder();
 
-        if(currentChar == '0' && this.reader.hasNext()) {
+        if (currentChar == '0' && this.reader.hasNext()) {
             number.append(currentChar);
             currentChar = this.reader.peek();
             type = switch (Character.toLowerCase(currentChar)) {
@@ -392,11 +439,12 @@ public class Lexer {
                 default -> type;
             };
 
-            if(type.isNonDecimalIntegralLiteral()) {
+            if (type.isNonDecimalIntegralLiteral()) {
                 currentChar = this.reader.consume();
                 number.append(currentChar);
 
-                integralLiteralLoop: while (this.reader.hasNext()) {
+                integralLiteralLoop:
+                while (this.reader.hasNext()) {
                     currentChar = this.reader.peek();
 
                     if (isTerminatingCharacter(currentChar))
@@ -406,13 +454,13 @@ public class Lexer {
 
                     switch (type) {
                         case NUMBER_OCTAL -> {
-                            if(currentChar < '0' || currentChar > '7') {
+                            if (currentChar < '0' || currentChar > '7') {
                                 type = TokenType.NUMBER_INT;
                                 break integralLiteralLoop;
                             }
                         }
                         case NUMBER_HEXADECIMAL -> {
-                            if(!isHexadecimal(currentChar)) {
+                            if (!isHexadecimal(currentChar)) {
                                 number.append(currentChar);
 
                                 while (this.reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
@@ -424,7 +472,7 @@ public class Lexer {
                             }
                         }
                         case NUMBER_BINARY -> {
-                            if(currentChar != '0' && currentChar != '1') {
+                            if (currentChar != '0' && currentChar != '1') {
                                 number.append(currentChar);
 
                                 while (this.reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
@@ -445,15 +493,15 @@ public class Lexer {
             }
         }
 
-        if(isTerminatingCharacter(currentChar))
+        if (isTerminatingCharacter(currentChar))
             return new Token(TokenType.NUMBER_INT, number.toString(), this.reader.getPos() - 1);
 
-        if(currentChar == '_') {
-            if(!this.reader.hasNext())
+        if (currentChar == '_') {
+            if (!this.reader.hasNext())
                 return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
 
             currentChar = this.reader.consume();
-            if(!Character.isDigit(currentChar))
+            if (!Character.isDigit(currentChar))
                 return new Token(TokenType.ILLEGAL, number.toString(), this.reader.getPos());
 
             number.append(currentChar);
@@ -461,11 +509,11 @@ public class Lexer {
             number.append(currentChar);
         }
 
-        if(currentChar != '.' && !Character.isDigit(currentChar)) {
+        if (currentChar != '.' && !Character.isDigit(currentChar)) {
             type = TokenType.ILLEGAL;
             while (this.reader.hasNext()) {
                 currentChar = this.reader.consume();
-                if(isTerminatingCharacter(currentChar))
+                if (isTerminatingCharacter(currentChar))
                     break;
 
                 number.append(currentChar);
@@ -482,11 +530,11 @@ public class Lexer {
                     break;
 
                 currentChar = this.reader.consume();
-                if(!Character.isDigit(currentChar)) {
+                if (!Character.isDigit(currentChar)) {
                     number.append(currentChar);
                     while (this.reader.hasNext()) {
                         currentChar = this.reader.peek();
-                        if(!isTerminatingCharacter(currentChar))
+                        if (!isTerminatingCharacter(currentChar))
                             currentChar = this.reader.consume();
                     }
                 }
@@ -500,7 +548,7 @@ public class Lexer {
                     type = TokenType.ILLEGAL;
                     while (this.reader.hasNext()) {
                         currentChar = this.reader.consume();
-                        if(isTerminatingCharacter(currentChar))
+                        if (isTerminatingCharacter(currentChar))
                             break;
 
                         number.append(currentChar);
@@ -526,9 +574,9 @@ public class Lexer {
 
                 break;
             }
-        };
+        }
 
-        if(this.reader.hasNext() && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
+        if (this.reader.hasNext() && (type == TokenType.NUMBER_DOUBLE || type == TokenType.NUMBER_FLOAT || type == TokenType.NUMBER_LONG)) {
             while (this.reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
                 currentChar = this.reader.consume();
                 type = TokenType.ILLEGAL;
