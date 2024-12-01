@@ -1,0 +1,49 @@
+<program> ::= <class_declaration>
+
+<class_declaration> ::= "class" <identifier> "{" <class_body> "}"
+
+<class_body> ::= { <field_declaration> | <method_declaration> }
+
+<field_declaration> ::= <type> <identifier> ";"
+
+<method_declaration> ::= <type> <identifier> "(" <parameter_list>? ")" "{" <block> "}"
+
+<parameter_list> ::= <parameter> { "," <parameter> }
+<parameter> ::= <type> <identifier>
+
+<block> ::= { <statement> }
+
+<statement> ::= <variable_declaration> | <assignment> | <expression_statement> | <if_statement> | <while_statement> | <return_statement> | <block>
+
+<variable_declaration> ::= <type> <identifier> "=" <expression> ";"
+
+<assignment> ::= <identifier> "=" <expression> ";" | <identifier> "*=" <expression> ";"
+
+<expression_statement> ::= <expression> ";"
+
+<if_statement> ::= "if" "(" <expression> ")" <block> [ "else" <block> ]
+
+<while_statement> ::= "while" "(" <expression> ")" <block>
+
+<return_statement> ::= "return" <expression> ";"
+
+<expression> ::= <literal> | <identifier> | <binary_expression> | <function_call>
+
+<binary_expression> ::= <expression> <operator> <expression>
+<operator> ::= "+" | "-" | "*" | "/" | ">" | "<" | ">=" | "<=" | "==" | "!=" | "&&" | "||"
+
+<function_call> ::= <identifier> "(" <argument_list>? ")"
+<argument_list> ::= <expression> { "," <expression> }
+
+<literal> ::= <integer_literal> | <string_literal>
+<integer_literal> ::= <digit> { <digit> }
+<string_literal> ::= '"' { <character> } '"'
+
+<type> ::= "int" | "string" | "void" | "bool" | "float" | "double" | "char" | "long" | "short" | "byte" | <identifier>
+
+<identifier> ::= <letter> { <letter> | <digit> | "_" }
+
+<digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+<letter> ::= "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" | "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" | "u" | "v" | "w" | "x" | "y" | "z" | "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "U" | "V" | "W" | "X" | "Y" | "Z"
+
+<character> ::= any printable character except '"'
