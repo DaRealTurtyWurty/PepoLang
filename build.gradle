@@ -6,6 +6,9 @@ plugins {
 group = 'dev.turtywurty'
 version = '1.0-SNAPSHOT'
 
+sourceCompatibility = JavaVersion.VERSION_23
+targetCompatibility = JavaVersion.VERSION_23
+
 repositories {
     mavenCentral()
 }
