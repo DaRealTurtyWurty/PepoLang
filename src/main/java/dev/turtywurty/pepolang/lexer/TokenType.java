@@ -138,4 +138,11 @@ public enum TokenType {
     public boolean isNonDecimalIntegralLiteral() {
         return this == NUMBER_OCTAL || this == NUMBER_HEXADECIMAL || this == NUMBER_BINARY;
     }
+
+    public boolean isStatementKeyword() {
+        if(this == KEYWORD_TRUE || this == KEYWORD_FALSE || this == KEYWORD_NULL)
+            return false;
+
+        return KEYWORDS.containsValue(this);
+    }
 }
