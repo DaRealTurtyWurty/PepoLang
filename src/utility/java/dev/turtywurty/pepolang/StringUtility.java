@@ -1,4 +1,4 @@
-package dev.turtywurty.pepolang.utility;
+package dev.turtywurty.pepolang;
 
 public class StringUtility {
     public static String capitalize(String str) {

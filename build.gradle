@@ -1,7 +1,19 @@
 plugins {
+    id 'idea'
     id 'java'
     id 'application'
 }
+
+idea {
+    module {
+        sourceDirs += file('src/utility/java')
+        sourceDirs += file('src/tooling/java')
+        sourceDirs += file('src/lexer/java')
+        sourceDirs += file('src/parser/java')
+        sourceDirs += file('src/interpreter/java')
+    }
+}
+
 
 group = 'dev.turtywurty'
 version = '1.0-SNAPSHOT'
@@ -13,12 +25,37 @@ repositories {
     mavenCentral()
 }
 
+sourceSets {
+    main
+    test
+    utility
+    lexer
+    parser
+    interpreter
+    tooling
+}
+
+configurations {
+    implementationAll
+}
+
 dependencies {
-    implementation 'org.jetbrains:annotations:24.1.0'
-    implementation 'com.palantir.javapoet:javapoet:0.5.0'
+    implementation sourceSets.utility.output
+    implementation sourceSets.tooling.output
+    implementation sourceSets.lexer.output
+    implementation sourceSets.parser.output
+    implementation sourceSets.interpreter.output
+
+    implementationAll 'org.jetbrains:annotations:24.1.0'
+    implementationAll 'com.palantir.javapoet:javapoet:0.5.0'
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+sourceSets.configureEach {
+    compileClasspath += configurations.implementationAll
+    runtimeClasspath += configurations.implementationAll
 }
 
 test {
@@ -29,8 +66,66 @@ application {
     mainClass = 'dev.turtywurty.pepolang.PepoLang'
 }
 
+sourceSets {
+    lexer {
+        compileClasspath += sourceSets.utility.output
+        runtimeClasspath += sourceSets.utility.output
+    }
+    parser {
+        compileClasspath += sourceSets.utility.output + sourceSets.lexer.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output
+    }
+    interpreter {
+        compileClasspath += sourceSets.utility.output + sourceSets.lexer.output + sourceSets.parser.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output + sourceSets.parser.output
+    }
+    tooling {
+        compileClasspath += sourceSets.utility.output + sourceSets.lexer.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output
+    }
+    main {
+        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output
+    }
+}
+
+tasks.register('utilityJar', Jar) {
+    from sourceSets.utility.output
+    archiveClassifier.set('utility')
+}
+
+tasks.register('toolingJar', Jar) {
+    from sourceSets.tooling.output
+    archiveClassifier.set('tooling')
+}
+
+tasks.register('lexerJar', Jar) {
+    from sourceSets.lexer.output
+    archiveClassifier.set('lexer')
+}
+
+tasks.register('parserJar', Jar) {
+    from sourceSets.parser.output
+    archiveClassifier.set('parser')
+}
+
+tasks.register('interpreterJar', Jar) {
+    from sourceSets.interpreter.output
+    archiveClassifier.set('interpreter')
+}
+
+tasks.register('allJars', Jar) {
+    from sourceSets.utility.output
+    from sourceSets.tooling.output
+    from sourceSets.lexer.output
+    from sourceSets.parser.output
+    from sourceSets.interpreter.output
+    from configurations.implementationAll
+    archiveClassifier.set('all')
+}
+
 tasks.register('generateAst', JavaExec) {
-    classpath = sourceSets.main.runtimeClasspath
+    classpath = sourceSets.tooling.runtimeClasspath
     main = 'dev.turtywurty.pepolang.tooling.AstGenerator'
-    args = ['src/main/java/']
+    args = ['src/parser/java']
 }

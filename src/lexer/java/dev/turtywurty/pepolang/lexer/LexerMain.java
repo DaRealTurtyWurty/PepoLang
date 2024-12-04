@@ -1,11 +1,13 @@
 package dev.turtywurty.pepolang.lexer;
 
+import dev.turtywurty.pepolang.logging.LogManager;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
-public class Main {
+public class LexerMain {
     public static void main(String[] args) {
         if(args.length == 0) {
             System.err.println("Please provide a file to parse!");
@@ -80,5 +82,13 @@ public class Main {
         }
 
         System.out.println(token);
+    }
+
+    public static void error(Token token, String message) {
+        if (token.type() == TokenType.EOF) {
+            LogManager.report(token.pos(), " at end", message);
+        } else {
+            LogManager.report(token.pos(), " at '" + token.value() + "'", message);
+        }
     }
 }

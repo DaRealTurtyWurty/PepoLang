@@ -1,15 +1,17 @@
 package dev.turtywurty.pepolang.tooling;
 
 import com.palantir.javapoet.*;
+import dev.turtywurty.pepolang.CollectionUtility;
+import dev.turtywurty.pepolang.JavaGenerated;
+import dev.turtywurty.pepolang.StringUtility;
 import dev.turtywurty.pepolang.lexer.Token;
-import dev.turtywurty.pepolang.utility.CollectionUtility;
-import dev.turtywurty.pepolang.utility.StringUtility;
 
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class AstGenerator {
@@ -21,9 +23,9 @@ public class AstGenerator {
 
         String outputDir = args[0];
 
-        ClassName expression = ClassName.get("dev.turtywurty.pepolang.parser", "Expression");
+        var expression = ClassName.get("dev.turtywurty.pepolang.parser", "Expression");
 
-        Map<String, Map<String, TypeName>> types = CollectionUtility.createTreeMap(
+        Map<String, Map<String, TypeName>> expressionTypes = CollectionUtility.createTreeMap(
                 "Binary", CollectionUtility.createTreeMap(
                         "left", expression,
                         "operator", TypeName.get(Token.class),
@@ -41,14 +43,25 @@ public class AstGenerator {
                 )
         );
 
-        defineAst(outputDir, types);
-        defineVisitor(outputDir, types);
+        Map<String, Map<String, TypeName>> statementTypes = CollectionUtility.createTreeMap(
+                "ExpressionStatement", Map.of(
+                        "expression", expression
+                ),
+                "PrintStatement", Map.of(
+                        "expression", expression
+                )
+        );
+
+        defineAst(outputDir, "Expression", expressionTypes);
+        defineVisitor(outputDir, "Expression", expressionTypes);
+        defineAst(outputDir, "Statement", statementTypes);
+        defineVisitor(outputDir, "Statement", statementTypes);
     }
 
-    private static void defineVisitor(String outputDir, Map<String, Map<String, TypeName>> types) throws IOException {
+    private static void defineVisitor(String outputDir, String baseName, Map<String, Map<String, TypeName>> types) throws IOException {
         TypeVariableName r = TypeVariableName.get("R");
 
-        TypeSpec.Builder visitor = TypeSpec.interfaceBuilder("Visitor")
+        TypeSpec.Builder visitor = TypeSpec.interfaceBuilder(baseName + "Visitor")
                 .addModifiers(Modifier.PUBLIC)
                 .addTypeVariable(r)
                 .addAnnotation(JavaGenerated.class);
@@ -56,7 +69,7 @@ public class AstGenerator {
         for (String type : types.keySet()) {
             visitor.addMethod(MethodSpec.methodBuilder("visit" + type)
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                    .addParameter(ClassName.get("dev.turtywurty.pepolang.parser.Expression", type), "expression")
+                    .addParameter(ClassName.get("dev.turtywurty.pepolang.parser." + baseName, type), baseName.toLowerCase(Locale.ROOT))
                     .returns(r)
                     .build());
         }
@@ -71,22 +84,22 @@ public class AstGenerator {
         javaFile.writeTo(Paths.get(outputDir));
     }
 
-    private static void defineAst(String outputDir, Map<String, Map<String, TypeName>> types) throws IOException {
+    private static void defineAst(String outputDir, String name, Map<String, Map<String, TypeName>> types) throws IOException {
         List<TypeSpec> classes = new ArrayList<>();
         for (Map.Entry<String, Map<String, TypeName>> entry : types.entrySet()) {
             String className = entry.getKey();
             Map<String, TypeName> fields = entry.getValue();
-            classes.add(defineType(className, fields));
+            classes.add(defineType(className, name, fields));
         }
 
         MethodSpec accept = MethodSpec.methodBuilder("accept")
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .addTypeVariable(TypeVariableName.get("R"))
-                .addParameter(ClassName.get("dev.turtywurty.pepolang.parser", "Visitor<R>"), "visitor")
+                .addParameter(ClassName.get("dev.turtywurty.pepolang.parser", name + "Visitor<R>"), "visitor")
                 .returns(TypeVariableName.get("R"))
                 .build();
 
-        TypeSpec baseType = TypeSpec.classBuilder("Expression")
+        TypeSpec baseType = TypeSpec.classBuilder(name)
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .addTypes(classes)
                 .addMethod(accept)
@@ -103,7 +116,7 @@ public class AstGenerator {
         javaFile.writeTo(Paths.get(outputDir));
     }
 
-    private static TypeSpec defineType(String className, Map<String, TypeName> fields) {
+    private static TypeSpec defineType(String className, String baseName, Map<String, TypeName> fields) {
         MethodSpec.Builder constructor = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC);
 
@@ -116,7 +129,7 @@ public class AstGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(Override.class)
                 .addTypeVariable(TypeVariableName.get("R"))
-                .addParameter(ClassName.get("dev.turtywurty.pepolang.parser", "Visitor<R>"), "visitor")
+                .addParameter(ClassName.get("dev.turtywurty.pepolang.parser", baseName + "Visitor<R>"), "visitor")
                 .returns(TypeVariableName.get("R"))
                 .addStatement("return visitor.visit$L(this)", className)
                 .build();
@@ -125,7 +138,7 @@ public class AstGenerator {
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .addMethod(constructor.build())
                 .addMethod(accept)
-                .superclass(ClassName.get("dev.turtywurty.pepolang.parser", "Expression"));
+                .superclass(ClassName.get("dev.turtywurty.pepolang.parser", baseName));
 
         for (Map.Entry<String, TypeName> field : fields.entrySet()) {
             clazz.addField(field.getValue(), field.getKey(), Modifier.PRIVATE, Modifier.FINAL);

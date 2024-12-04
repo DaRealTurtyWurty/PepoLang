@@ -1,9 +1,7 @@
 package dev.turtywurty.pepolang.lexer;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class Lexer {
     private final SourceReader reader;
@@ -14,6 +12,17 @@ public class Lexer {
 
     public Lexer(String str) {
         this(str.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public List<Token> lex() {
+        List<Token> tokens = new ArrayList<>();
+        Token token;
+        while ((token = nextToken()).type() != TokenType.EOF) {
+            tokens.add(token);
+        }
+
+        tokens.add(token);
+        return tokens;
     }
 
     public Token nextToken() {
@@ -41,7 +50,7 @@ public class Lexer {
             }
 
             if (TokenType.SINGLE_CHAR_TOKENS.containsKey(current)) {
-                toReturn = new Token(TokenType.SINGLE_CHAR_TOKENS.get(current), "", this.reader.getPos());
+                toReturn = new Token(TokenType.SINGLE_CHAR_TOKENS.get(current), current, this.reader.getPos());
                 break;
             }
 
@@ -70,12 +79,12 @@ public class Lexer {
                 break;
             }
 
-            toReturn = new Token(TokenType.ILLEGAL, "", this.reader.getPos());
+            toReturn = new Token(TokenType.ILLEGAL, this.reader.getPos());
             break;
         }
 
         if (toReturn == null)
-            toReturn = new Token(TokenType.EOF, "", this.reader.getPos());
+            toReturn = new Token(TokenType.EOF, this.reader.getPos());
 
         System.out.println(toReturn);
         return toReturn;
@@ -107,7 +116,7 @@ public class Lexer {
             if (longestMatch != null) {
                 this.reader.consume(longestMatch.length());
 
-                return Optional.of(new Token(matchType, "", this.reader.getPos()));
+                return Optional.of(new Token(matchType, longestMatch, this.reader.getPos()));
             }
         }
 
@@ -116,7 +125,7 @@ public class Lexer {
 
     private Optional<Token> readSlash() {
         if (!this.reader.hasNext())
-            return Optional.of(new Token(TokenType.DIV, "", this.reader.getPos()));
+            return Optional.of(new Token(TokenType.DIV, null, this.reader.getPos()));
 
         char nextChar = this.reader.peek();
         if (nextChar == '/') { // reached a comment
@@ -144,16 +153,16 @@ public class Lexer {
                 this.reader.consume();
                 return Optional.empty();
             } else {
-                return Optional.of(new Token(TokenType.ILLEGAL, "", this.reader.getPos()));
+                return Optional.of(new Token(TokenType.ILLEGAL, this.reader.getPos()));
             }
         }
 
         if (nextChar == '=') {
             this.reader.consume();
-            return Optional.of(new Token(TokenType.DIV_EQUAL, "", this.reader.getPos()));
+            return Optional.of(new Token(TokenType.DIV_EQUAL, this.reader.getPos()));
         }
 
-        return Optional.of(new Token(TokenType.DIV, "", this.reader.getPos()));
+        return Optional.of(new Token(TokenType.DIV, this.reader.getPos()));
     }
 
     private Token readIdentifier(char currentChar) {
@@ -167,7 +176,7 @@ public class Lexer {
 
         String identifierStr = identifier.toString();
         if (TokenType.KEYWORDS.containsKey(identifierStr))
-            return new Token(TokenType.KEYWORDS.get(identifierStr), "", this.reader.getPos());
+            return new Token(TokenType.KEYWORDS.get(identifierStr), this.reader.getPos());
 
         return new Token(TokenType.IDENTIFIER, identifierStr, this.reader.getPos());
     }
@@ -292,7 +301,7 @@ public class Lexer {
 
     private Token readCharacter() {
         if (!this.reader.hasNext())
-            return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
+            return new Token(TokenType.ILLEGAL, this.reader.getPos());
 
         char current = this.reader.peek();
         if (current == '\\') {
@@ -318,21 +327,21 @@ public class Lexer {
 
                 try {
                     return new Token(TokenType.CHARACTER,
-                            new String(Character.toChars(Integer.parseInt(builder.substring(2), 16))),
+                            Character.toChars(Integer.parseInt(builder.substring(2), 16)),
                             this.reader.getPos());
                 } catch (NumberFormatException ignored) {
                     return new Token(TokenType.ILLEGAL, builder.toString(), this.reader.getPos());
                 }
             } else {
                 if (!this.reader.hasNext())
-                    return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
+                    return new Token(TokenType.ILLEGAL, this.reader.getPos());
 
                 current = this.reader.consume();
                 Character escape = parseEscapeSequence(current);
                 boolean isNextCharValid = this.reader.hasNext() && this.reader.consume() == '\'';
                 return new Token(
                         escape != null && isNextCharValid ? TokenType.CHARACTER : TokenType.ILLEGAL,
-                        escape != null ? String.valueOf(escape) : "",
+                        escape,
                         this.reader.getPos());
             }
         } else {
@@ -342,27 +351,27 @@ public class Lexer {
                     int codePoint = decodeUtf8CodePoint();
                     while (this.reader.hasNext() && this.reader.consume() != '\'') {
                         if (!this.reader.hasNext())
-                            return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
+                            return new Token(TokenType.ILLEGAL, this.reader.getPos());
                     }
 
                     return new Token(TokenType.CHARACTER, new String(Character.toChars(codePoint)), this.reader.getPos());
                 } catch (IllegalArgumentException ignored) {
                     while (this.reader.hasNext() && this.reader.consume() != '\'') {
                         if (!this.reader.hasNext())
-                            return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
+                            return new Token(TokenType.ILLEGAL, this.reader.getPos());
                     }
 
-                    return new Token(TokenType.ILLEGAL, "", this.reader.getPos());
+                    return new Token(TokenType.ILLEGAL, this.reader.getPos());
                 }
             }
 
             current = this.reader.consume();
             if (this.reader.hasNext() && this.reader.consume() == '\'') {
-                return new Token(TokenType.CHARACTER, String.valueOf(current), this.reader.getPos());
+                return new Token(TokenType.CHARACTER, current, this.reader.getPos());
             }
         }
 
-        return new Token(TokenType.ILLEGAL, String.valueOf(current), this.reader.getPos());
+        return new Token(TokenType.ILLEGAL, current, this.reader.getPos());
     }
 
     private int decodeUtf8CodePoint() throws IllegalArgumentException {
@@ -489,12 +498,12 @@ public class Lexer {
                 }
 
                 if (type.isNonDecimalIntegralLiteral())
-                    return new Token(type, number.toString(), this.reader.getPos() - 1);
+                    return new Token(type, parseNumber(number.toString(), type), this.reader.getPos() - 1);
             }
         }
 
         if (isTerminatingCharacter(currentChar))
-            return new Token(TokenType.NUMBER_INT, number.toString(), this.reader.getPos() - 1);
+            return new Token(TokenType.NUMBER_INT, parseNumber(number.toString(), type), this.reader.getPos() - 1);
 
         if (currentChar == '_') {
             if (!this.reader.hasNext())
@@ -519,7 +528,7 @@ public class Lexer {
                 number.append(currentChar);
             }
 
-            return new Token(type, number.toString(), this.reader.getPos() - 1);
+            return new Token(type, parseNumber(number.toString(), type), this.reader.getPos() - 1);
         }
 
         while (reader.hasNext() && !isTerminatingCharacter(this.reader.peek())) {
@@ -584,7 +593,51 @@ public class Lexer {
             }
         }
 
-        return new Token(type, number.toString(), this.reader.getPos() - 1);
+        return new Token(type, parseNumber(number.toString(), type), this.reader.getPos() - 1);
+    }
+
+    private static Number parseInteger(String number, TokenType type) {
+        try {
+            if(type == TokenType.NUMBER_INT) {
+                long value = Long.parseLong(number);
+                if(value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) {
+                    return (int) value;
+                }
+
+                return value;
+            } else if(type == TokenType.NUMBER_LONG) {
+                return Long.parseLong(number.toLowerCase(Locale.ROOT).replace("l", ""));
+            }
+
+            return Integer.parseInt(number, switch (type) {
+                case NUMBER_OCTAL -> 8;
+                case NUMBER_HEXADECIMAL -> 16;
+                case NUMBER_BINARY -> 2;
+                default -> 10;
+            });
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static Number parseFloatingPoint(String number, TokenType type) {
+        try {
+            return switch (type) {
+                case NUMBER_FLOAT -> Float.parseFloat(number.toLowerCase(Locale.ROOT).replace("f", ""));
+                case NUMBER_DOUBLE -> Double.parseDouble(number.toLowerCase(Locale.ROOT).replace("d", ""));
+                default -> 0;
+            };
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private static Number parseNumber(String number, TokenType type) {
+        return switch (type) {
+            case NUMBER_INT, NUMBER_LONG, NUMBER_OCTAL, NUMBER_HEXADECIMAL, NUMBER_BINARY -> parseInteger(number, type);
+            case NUMBER_FLOAT, NUMBER_DOUBLE -> parseFloatingPoint(number, type);
+            default -> 0;
+        };
     }
 
     private static boolean isHexadecimal(char character) {

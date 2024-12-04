@@ -1,4 +1,4 @@
-package dev.turtywurty.pepolang.utility;
+package dev.turtywurty.pepolang;
 
 import java.util.TreeMap;
 

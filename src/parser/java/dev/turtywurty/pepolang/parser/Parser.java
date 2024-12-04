@@ -1,6 +1,6 @@
 package dev.turtywurty.pepolang.parser;
 
-import dev.turtywurty.pepolang.PepoLang;
+import dev.turtywurty.pepolang.lexer.LexerMain;
 import dev.turtywurty.pepolang.lexer.Token;
 import dev.turtywurty.pepolang.lexer.TokenType;
 
@@ -16,12 +16,7 @@ public class Parser {
     }
 
     public Expression parse() {
-        try {
-            return expression();
-        } catch (ParseError error) {
-            hadError = true;
-            return null;
-        }
+        return null;
     }
 
     public Expression expression() {
@@ -123,7 +118,7 @@ public class Parser {
     }
 
     private ParseError error(Token token, String message) {
-        PepoLang.error(token, message);
+        LexerMain.error(token, message);
         return new ParseError();
     }
 

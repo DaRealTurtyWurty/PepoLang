@@ -64,6 +64,7 @@ public enum TokenType {
     KEYWORD_NULL,
     KEYWORD_IMPORT,
     KEYWORD_CLASS,
+    KEYWORD_PRINT,
 
     // Operators
     PLUS_PLUS,
@@ -133,6 +134,7 @@ public enum TokenType {
         put("null", KEYWORD_NULL);
         put("import", KEYWORD_IMPORT);
         put("class", KEYWORD_CLASS);
+        put("print", KEYWORD_PRINT);
     }};
 
     public boolean isNonDecimalIntegralLiteral() {
