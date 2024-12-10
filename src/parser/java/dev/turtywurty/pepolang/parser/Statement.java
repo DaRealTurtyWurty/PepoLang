@@ -2,6 +2,7 @@
 package dev.turtywurty.pepolang.parser;
 
 import dev.turtywurty.pepolang.JavaGenerated;
+import dev.turtywurty.pepolang.lexer.Token;
 
 @JavaGenerated
 public abstract class Statement {
@@ -38,6 +39,37 @@ public abstract class Statement {
 
         public Expression getExpression() {
             return this.expression;
+        }
+    }
+
+    public static class VariableStatement extends Statement {
+        private final Expression initializer;
+
+        private final Token name;
+
+        private final Token type;
+
+        public VariableStatement(Expression initializer, Token name, Token type) {
+            this.initializer = initializer;
+            this.name = name;
+            this.type = type;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitVariableStatement(this);
+        }
+
+        public Expression getInitializer() {
+            return this.initializer;
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Token getType() {
+            return this.type;
         }
     }
 }

@@ -4,7 +4,9 @@ import dev.turtywurty.pepolang.lexer.LexerMain;
 import dev.turtywurty.pepolang.lexer.Token;
 import dev.turtywurty.pepolang.lexer.TokenType;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 public class Parser {
     private final List<Token> tokens;
@@ -15,12 +17,88 @@ public class Parser {
         this.tokens = tokens;
     }
 
-    public Expression parse() {
-        return null;
+    public List<Statement> parse() {
+        List<Statement> statements = new ArrayList<>();
+
+        while (!isAtEnd()) {
+            statements.add(declaration());
+        }
+
+        return statements;
+    }
+
+    public Expression parseExpr() {
+        return expression();
+    }
+
+    private Statement declaration() {
+        try {
+            if (match(TokenType::isVariableTypeKeyword)) {
+                return variableDeclaration();
+            }
+
+            if(match(TokenType.IDENTIFIER)) {
+                // could be a type. for example: Statement s = null;
+                return variableDeclaration();
+            }
+
+            return statement();
+        } catch (ParseError error) {
+            synchronize();
+            return null;
+        }
+    }
+
+    private Statement variableDeclaration() {
+        Token type = previous();
+        Token name = consume(TokenType.IDENTIFIER, "Variable name expected.");
+
+        Expression initializer = null;
+        if (match(TokenType.ASSIGN)) {
+            initializer = expression();
+        }
+
+        consume(TokenType.SEMICOLON, "';' expected after variable declaration.");
+        return new Statement.VariableStatement(initializer, name, type);
+    }
+
+    private Statement statement() {
+        if (match(TokenType.KEYWORD_PRINT)) return printStatement();
+        return expressionStatement();
+    }
+
+    private Statement printStatement() {
+        Expression value = expression();
+        consume(TokenType.SEMICOLON, "Expect ';' after value.");
+        return new Statement.PrintStatement(value);
+    }
+
+    private Statement expressionStatement() {
+        Expression value = expression();
+        consume(TokenType.SEMICOLON, "Expect ';' after value.");
+        return new Statement.ExpressionStatement(value);
     }
 
     public Expression expression() {
-        return equality();
+        return assignment();
+    }
+
+    private Expression assignment() {
+        Expression expression = equality();
+
+        if(match(TokenType.ASSIGN)) {
+            Token equals = previous();
+            Expression value = assignment();
+
+            if(expression instanceof Expression.Variable variable) {
+                Token name = variable.getName();
+                return new Expression.Assign(name, value);
+            }
+
+            error(equals, "Invalid assignment target.");
+        }
+
+        return expression;
     }
 
     private Expression equality() {
@@ -89,6 +167,10 @@ public class Parser {
         if(match(TokenType.NUMBER_INT, TokenType.NUMBER_HEXADECIMAL, TokenType.NUMBER_BINARY, TokenType.NUMBER_OCTAL, TokenType.NUMBER_FLOAT, TokenType.NUMBER_DOUBLE, TokenType.NUMBER_LONG, TokenType.STRING, TokenType.MULTI_LINE_STRING, TokenType.CHARACTER))
             return new Expression.Literal(previous().value());
 
+        if(match(TokenType.IDENTIFIER)) {
+            return new Expression.Variable(previous());
+        }
+
         if(match(TokenType.LPAREN)) {
             Expression expression = expression();
             consume(TokenType.RPAREN, "Expect ')' after expression.");
@@ -133,9 +215,22 @@ public class Parser {
         return false;
     }
 
+    private boolean match(Predicate<TokenType> predicate) {
+        if (check(predicate)) {
+            advance();
+            return true;
+        }
+
+        return false;
+    }
+
     private boolean check(TokenType type) {
+        return check(token -> token == type);
+    }
+
+    private boolean check(Predicate<TokenType> predicate) {
         if (isAtEnd()) return false;
-        return peek().type() == type;
+        return predicate.test(peek().type());
     }
 
     private Token advance() {
@@ -152,7 +247,11 @@ public class Parser {
     }
 
     private Token previous() {
-        return tokens.get(current - 1);
+        return previous(1);
+    }
+
+    private Token previous(int offset) {
+        return tokens.get(current - offset);
     }
 
     public boolean hadError() {

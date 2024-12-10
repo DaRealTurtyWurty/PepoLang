@@ -13,14 +13,14 @@ public class CollectionUtility {
         return map;
     }
 
-    public static <K, V>TreeMap<K, V> createTreeMap(K key1, V value1, K key2, V value2) {
+    public static <K, V> TreeMap<K, V> createTreeMap(K key1, V value1, K key2, V value2) {
         TreeMap<K, V> map = new TreeMap<>();
         map.put(key1, value1);
         map.put(key2, value2);
         return map;
     }
 
-    public static <K, V>TreeMap<K, V> createTreeMap(K key1, V value1, K key2, V value2, K key3, V value3) {
+    public static <K, V> TreeMap<K, V> createTreeMap(K key1, V value1, K key2, V value2, K key3, V value3) {
         TreeMap<K, V> map = new TreeMap<>();
         map.put(key1, value1);
         map.put(key2, value2);

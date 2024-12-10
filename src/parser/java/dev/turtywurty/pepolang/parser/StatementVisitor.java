@@ -4,10 +4,13 @@ package dev.turtywurty.pepolang.parser;
 import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.parser.Statement.ExpressionStatement;
 import dev.turtywurty.pepolang.parser.Statement.PrintStatement;
+import dev.turtywurty.pepolang.parser.Statement.VariableStatement;
 
 @JavaGenerated
 public interface StatementVisitor<R> {
     R visitExpressionStatement(ExpressionStatement statement);
 
     R visitPrintStatement(PrintStatement statement);
+
+    R visitVariableStatement(VariableStatement statement);
 }

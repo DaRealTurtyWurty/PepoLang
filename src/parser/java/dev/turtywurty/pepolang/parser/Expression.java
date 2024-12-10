@@ -8,6 +8,30 @@ import dev.turtywurty.pepolang.lexer.Token;
 public abstract class Expression {
     public abstract <R> R accept(ExpressionVisitor<R> visitor);
 
+    public static class Assign extends Expression {
+        private final Token name;
+
+        private final Expression value;
+
+        public Assign(Token name, Expression value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitAssign(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Expression getValue() {
+            return this.value;
+        }
+    }
+
     public static class Binary extends Expression {
         private final Expression left;
 
@@ -94,6 +118,23 @@ public abstract class Expression {
 
         public Expression getRight() {
             return this.right;
+        }
+    }
+
+    public static class Variable extends Expression {
+        private final Token name;
+
+        public Variable(Token name) {
+            this.name = name;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitVariable(this);
+        }
+
+        public Token getName() {
+            return this.name;
         }
     }
 }

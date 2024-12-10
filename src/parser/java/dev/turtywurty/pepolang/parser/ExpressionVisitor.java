@@ -2,13 +2,17 @@
 package dev.turtywurty.pepolang.parser;
 
 import dev.turtywurty.pepolang.JavaGenerated;
+import dev.turtywurty.pepolang.parser.Expression.Assign;
 import dev.turtywurty.pepolang.parser.Expression.Binary;
 import dev.turtywurty.pepolang.parser.Expression.Grouping;
 import dev.turtywurty.pepolang.parser.Expression.Literal;
 import dev.turtywurty.pepolang.parser.Expression.Unary;
+import dev.turtywurty.pepolang.parser.Expression.Variable;
 
 @JavaGenerated
 public interface ExpressionVisitor<R> {
+    R visitAssign(Assign expression);
+
     R visitBinary(Binary expression);
 
     R visitGrouping(Grouping expression);
@@ -16,4 +20,6 @@ public interface ExpressionVisitor<R> {
     R visitLiteral(Literal expression);
 
     R visitUnary(Unary expression);
+
+    R visitVariable(Variable expression);
 }

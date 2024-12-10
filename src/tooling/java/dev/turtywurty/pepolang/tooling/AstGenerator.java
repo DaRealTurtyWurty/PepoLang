@@ -9,10 +9,7 @@ import dev.turtywurty.pepolang.lexer.Token;
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public class AstGenerator {
     public static void main(String[] args) throws IOException {
@@ -25,30 +22,42 @@ public class AstGenerator {
 
         var expression = ClassName.get("dev.turtywurty.pepolang.parser", "Expression");
 
-        Map<String, Map<String, TypeName>> expressionTypes = CollectionUtility.createTreeMap(
+        TreeMap<String, TreeMap<String, TypeName>> expressionTypes = CollectionUtility.createTreeMap(
+                "Assign", CollectionUtility.createTreeMap(
+                        "name", TypeName.get(Token.class), // TODO: Add type
+                        "value", expression
+                ),
                 "Binary", CollectionUtility.createTreeMap(
                         "left", expression,
                         "operator", TypeName.get(Token.class),
                         "right", expression
                 ),
-                "Grouping", Map.of(
+                "Grouping", CollectionUtility.createTreeMap(
                         "expression", expression
                 ),
-                "Literal", Map.of(
+                "Literal", CollectionUtility.createTreeMap(
                         "value", TypeName.get(Object.class)
                 ),
                 "Unary", CollectionUtility.createTreeMap(
                         "operator", TypeName.get(Token.class),
                         "right", expression
+                ),
+                "Variable", CollectionUtility.createTreeMap(
+                        "name", TypeName.get(Token.class)
                 )
         );
 
-        Map<String, Map<String, TypeName>> statementTypes = CollectionUtility.createTreeMap(
-                "ExpressionStatement", Map.of(
+        TreeMap<String, TreeMap<String, TypeName>> statementTypes = CollectionUtility.createTreeMap(
+                "ExpressionStatement", CollectionUtility.createTreeMap(
                         "expression", expression
                 ),
-                "PrintStatement", Map.of(
+                "PrintStatement", CollectionUtility.createTreeMap(
                         "expression", expression
+                ),
+                "VariableStatement", CollectionUtility.createTreeMap(
+                        "type", TypeName.get(Token.class),
+                        "name", TypeName.get(Token.class),
+                        "initializer", expression
                 )
         );
 
@@ -58,7 +67,7 @@ public class AstGenerator {
         defineVisitor(outputDir, "Statement", statementTypes);
     }
 
-    private static void defineVisitor(String outputDir, String baseName, Map<String, Map<String, TypeName>> types) throws IOException {
+    private static void defineVisitor(String outputDir, String baseName, TreeMap<String, TreeMap<String, TypeName>> types) throws IOException {
         TypeVariableName r = TypeVariableName.get("R");
 
         TypeSpec.Builder visitor = TypeSpec.interfaceBuilder(baseName + "Visitor")
@@ -66,7 +75,7 @@ public class AstGenerator {
                 .addTypeVariable(r)
                 .addAnnotation(JavaGenerated.class);
 
-        for (String type : types.keySet()) {
+        for (String type : types.sequencedKeySet()) {
             visitor.addMethod(MethodSpec.methodBuilder("visit" + type)
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                     .addParameter(ClassName.get("dev.turtywurty.pepolang.parser." + baseName, type), baseName.toLowerCase(Locale.ROOT))
@@ -84,11 +93,11 @@ public class AstGenerator {
         javaFile.writeTo(Paths.get(outputDir));
     }
 
-    private static void defineAst(String outputDir, String name, Map<String, Map<String, TypeName>> types) throws IOException {
+    private static void defineAst(String outputDir, String name, TreeMap<String, TreeMap<String, TypeName>> types) throws IOException {
         List<TypeSpec> classes = new ArrayList<>();
-        for (Map.Entry<String, Map<String, TypeName>> entry : types.entrySet()) {
+        for (Map.Entry<String, TreeMap<String, TypeName>> entry : types.sequencedEntrySet()) {
             String className = entry.getKey();
-            Map<String, TypeName> fields = entry.getValue();
+            TreeMap<String, TypeName> fields = entry.getValue();
             classes.add(defineType(className, name, fields));
         }
 
@@ -116,11 +125,11 @@ public class AstGenerator {
         javaFile.writeTo(Paths.get(outputDir));
     }
 
-    private static TypeSpec defineType(String className, String baseName, Map<String, TypeName> fields) {
+    private static TypeSpec defineType(String className, String baseName, TreeMap<String, TypeName> fields) {
         MethodSpec.Builder constructor = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC);
 
-        for (Map.Entry<String, TypeName> field : fields.entrySet()) {
+        for (Map.Entry<String, TypeName> field : fields.sequencedEntrySet()) {
             constructor.addParameter(field.getValue(), field.getKey());
             constructor.addStatement("this.$L = $L", field.getKey(), field.getKey());
         }
@@ -140,7 +149,7 @@ public class AstGenerator {
                 .addMethod(accept)
                 .superclass(ClassName.get("dev.turtywurty.pepolang.parser", baseName));
 
-        for (Map.Entry<String, TypeName> field : fields.entrySet()) {
+        for (Map.Entry<String, TypeName> field : fields.sequencedEntrySet()) {
             clazz.addField(field.getValue(), field.getKey(), Modifier.PRIVATE, Modifier.FINAL);
             clazz.addMethod(MethodSpec.methodBuilder("get" + StringUtility.capitalize(field.getKey()))
                     .addModifiers(Modifier.PUBLIC)

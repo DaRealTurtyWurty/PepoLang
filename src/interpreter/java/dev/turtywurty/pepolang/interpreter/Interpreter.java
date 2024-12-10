@@ -1,26 +1,37 @@
 package dev.turtywurty.pepolang.interpreter;
 
 import dev.turtywurty.pepolang.lexer.Token;
-import dev.turtywurty.pepolang.parser.Expression;
-import dev.turtywurty.pepolang.parser.ExpressionVisitor;
-import dev.turtywurty.pepolang.parser.Statement;
-import dev.turtywurty.pepolang.parser.StatementVisitor;
+import dev.turtywurty.pepolang.parser.*;
 
+import java.util.List;
 import java.util.Objects;
 
 public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<Void> {
-    public void interpret(Expression expression) {
+    private final Environment environment = new Environment();
+
+    public void interpret(List<Statement> statements) {
         try {
-            Object value = evaluate(expression);
-            System.out.println("Result: " + stringify(value));
+            for (Statement statement : statements) {
+                execute(statement);
+            }
         } catch (RuntimeError error) {
             throw new RuntimeException("Something went wrong in the interpreter!", error);
         }
     }
 
+    private void execute(Statement statement) {
+        statement.accept(this);
+    }
+
     private String stringify(Object object) {
         if (object == null) return "null";
         return object.toString();
+    }
+
+    @Override
+    public Object visitAssign(Expression.Assign expression) {
+        Object value = evaluate(expression.getValue());
+        environment.assign(expression.getName(), value);
     }
 
     @Override
@@ -136,6 +147,11 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
         };
     }
 
+    @Override
+    public Object visitVariable(Expression.Variable expression) {
+        return environment.get((String) expression.getName().value());
+    }
+
     private void checkNumberOperand(Token operator, Object operand) {
         if (operand instanceof Number) return;
         throw new RuntimeError(operator, "Operand must be a number.");
@@ -162,11 +178,25 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
 
     @Override
     public Void visitExpressionStatement(Statement.ExpressionStatement statement) {
+        evaluate(statement.getExpression());
         return null;
     }
 
     @Override
     public Void visitPrintStatement(Statement.PrintStatement statement) {
+        Object value = evaluate(statement.getExpression());
+        System.out.println(stringify(value));
+        return null;
+    }
+
+    @Override
+    public Void visitVariableStatement(Statement.VariableStatement statement) {
+        Object value = null;
+        if (statement.getInitializer() != null) {
+            value = evaluate(statement.getInitializer());
+        }
+
+        environment.define((String) statement.getName().value(), value); // TODO: Handle types
         return null;
     }
 

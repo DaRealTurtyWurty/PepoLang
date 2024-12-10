@@ -65,6 +65,12 @@ public enum TokenType {
     KEYWORD_IMPORT,
     KEYWORD_CLASS,
     KEYWORD_PRINT,
+    KEYWORD_DOUBLE,
+    KEYWORD_LONG,
+    KEYWORD_BYTE,
+    KEYWORD_SHORT,
+    KEYWORD_CHAR,
+    KEYWORD_FINAL,
 
     // Operators
     PLUS_PLUS,
@@ -142,9 +148,15 @@ public enum TokenType {
     }
 
     public boolean isStatementKeyword() {
-        if(this == KEYWORD_TRUE || this == KEYWORD_FALSE || this == KEYWORD_NULL)
+        if (this == KEYWORD_TRUE || this == KEYWORD_FALSE || this == KEYWORD_NULL)
             return false;
 
         return KEYWORDS.containsValue(this);
+    }
+
+    public boolean isVariableTypeKeyword() {
+        return this == KEYWORD_INT || this == KEYWORD_FLOAT || this == KEYWORD_BOOL || this == KEYWORD_STRING ||
+                this == KEYWORD_DOUBLE || this == KEYWORD_LONG || this == KEYWORD_BYTE || this == KEYWORD_SHORT ||
+                this == KEYWORD_CHAR;
     }
 }
