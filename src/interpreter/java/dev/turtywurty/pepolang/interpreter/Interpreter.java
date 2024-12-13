@@ -32,6 +32,7 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     public Object visitAssign(Expression.Assign expression) {
         Object value = evaluate(expression.getValue());
         environment.assign(expression.getName(), value);
+        return value;
     }
 
     @Override

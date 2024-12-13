@@ -57,6 +57,11 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
     }
 
     @Override
+    public String visitAssign(Expression.Assign expression) {
+        return "";
+    }
+
+    @Override
     public String visitBinary(Expression.Binary expression) {
         return parenthesize(expression.getOperator().type().name(), expression.getLeft(), expression.getRight());
     }
