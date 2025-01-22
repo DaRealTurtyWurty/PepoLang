@@ -3,10 +3,73 @@ package dev.turtywurty.pepolang.parser;
 
 import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.lexer.Token;
+import java.util.List;
+import java.util.Map;
 
 @JavaGenerated
 public abstract class Statement {
     public abstract <R> R accept(StatementVisitor<R> visitor);
+
+    public static class AssignStatement extends Statement {
+        private final Token name;
+
+        private final Expression value;
+
+        public AssignStatement(Token name, Expression value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitAssignStatement(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Expression getValue() {
+            return this.value;
+        }
+    }
+
+    public static class BlockStatement extends Statement {
+        private final List<Statement> statements;
+
+        public BlockStatement(List<Statement> statements) {
+            this.statements = statements;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitBlockStatement(this);
+        }
+
+        public List<Statement> getStatements() {
+            return this.statements;
+        }
+    }
+
+    public static class BreakStatement extends Statement {
+        public BreakStatement() {
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitBreakStatement(this);
+        }
+    }
+
+    public static class ContinueStatement extends Statement {
+        public ContinueStatement() {
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitContinueStatement(this);
+        }
+    }
 
     public static class ExpressionStatement extends Statement {
         private final Expression expression;
@@ -25,20 +88,97 @@ public abstract class Statement {
         }
     }
 
-    public static class PrintStatement extends Statement {
-        private final Expression expression;
+    public static class FunctionStatement extends Statement {
+        private final List<Statement> body;
 
-        public PrintStatement(Expression expression) {
-            this.expression = expression;
+        private final Token name;
+
+        private final Map<Token, Token> parameters;
+
+        private final Token returnType;
+
+        public FunctionStatement(List<Statement> body, Token name, Map<Token, Token> parameters,
+                Token returnType) {
+            this.body = body;
+            this.name = name;
+            this.parameters = parameters;
+            this.returnType = returnType;
         }
 
         @Override
         public <R> R accept(StatementVisitor<R> visitor) {
-            return visitor.visitPrintStatement(this);
+            return visitor.visitFunctionStatement(this);
         }
 
-        public Expression getExpression() {
-            return this.expression;
+        public List<Statement> getBody() {
+            return this.body;
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Map<Token, Token> getParameters() {
+            return this.parameters;
+        }
+
+        public Token getReturnType() {
+            return this.returnType;
+        }
+    }
+
+    public static class IfStatement extends Statement {
+        private final Expression condition;
+
+        private final Statement elseBranch;
+
+        private final Statement thenBranch;
+
+        public IfStatement(Expression condition, Statement elseBranch, Statement thenBranch) {
+            this.condition = condition;
+            this.elseBranch = elseBranch;
+            this.thenBranch = thenBranch;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitIfStatement(this);
+        }
+
+        public Expression getCondition() {
+            return this.condition;
+        }
+
+        public Statement getElseBranch() {
+            return this.elseBranch;
+        }
+
+        public Statement getThenBranch() {
+            return this.thenBranch;
+        }
+    }
+
+    public static class ReturnStatement extends Statement {
+        private final Token keyword;
+
+        private final Expression value;
+
+        public ReturnStatement(Token keyword, Expression value) {
+            this.keyword = keyword;
+            this.value = value;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitReturnStatement(this);
+        }
+
+        public Token getKeyword() {
+            return this.keyword;
+        }
+
+        public Expression getValue() {
+            return this.value;
         }
     }
 
@@ -70,6 +210,30 @@ public abstract class Statement {
 
         public Token getType() {
             return this.type;
+        }
+    }
+
+    public static class WhileStatement extends Statement {
+        private final Statement body;
+
+        private final Expression condition;
+
+        public WhileStatement(Statement body, Expression condition) {
+            this.body = body;
+            this.condition = condition;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitWhileStatement(this);
+        }
+
+        public Statement getBody() {
+            return this.body;
+        }
+
+        public Expression getCondition() {
+            return this.condition;
         }
     }
 }

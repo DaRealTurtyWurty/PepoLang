@@ -64,7 +64,6 @@ public enum TokenType {
     KEYWORD_NULL,
     KEYWORD_IMPORT,
     KEYWORD_CLASS,
-    KEYWORD_PRINT,
     KEYWORD_DOUBLE,
     KEYWORD_LONG,
     KEYWORD_BYTE,
@@ -140,7 +139,6 @@ public enum TokenType {
         put("null", KEYWORD_NULL);
         put("import", KEYWORD_IMPORT);
         put("class", KEYWORD_CLASS);
-        put("print", KEYWORD_PRINT);
     }};
 
     public boolean isNonDecimalIntegralLiteral() {
@@ -154,9 +152,9 @@ public enum TokenType {
         return KEYWORDS.containsValue(this);
     }
 
-    public boolean isVariableTypeKeyword() {
+    public boolean isTypeKeyword() {
         return this == KEYWORD_INT || this == KEYWORD_FLOAT || this == KEYWORD_BOOL || this == KEYWORD_STRING ||
                 this == KEYWORD_DOUBLE || this == KEYWORD_LONG || this == KEYWORD_BYTE || this == KEYWORD_SHORT ||
-                this == KEYWORD_CHAR;
+                this == KEYWORD_CHAR || this == KEYWORD_VOID;
     }
 }

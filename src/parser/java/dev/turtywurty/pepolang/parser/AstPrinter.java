@@ -47,6 +47,11 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
     }
 
     @Override
+    public String visitLogical(Expression.Logical expression) {
+        return expression.getLeft().accept(this) + " " + expression.getOperator().type().name() + " " + expression.getRight().accept(this);
+    }
+
+    @Override
     public String visitUnary(Expression.Unary expression) {
         return parenthesize(expression.getOperator().type().name(), expression.getRight());
     }
@@ -58,12 +63,22 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
 
     @Override
     public String visitAssign(Expression.Assign expression) {
-        return "";
+        return expression.getName().value() + " = " + expression.getValue().accept(this);
     }
 
     @Override
     public String visitBinary(Expression.Binary expression) {
         return parenthesize(expression.getOperator().type().name(), expression.getLeft(), expression.getRight());
+    }
+
+    @Override
+    public String visitCall(Expression.Call expression) {
+        return parenthesize(expression.getCallee(), expression.getArguments().toArray(new Expression[0]));
+    }
+
+    @Override
+    public String visitFunction(Expression.Function expression) {
+        return expression.getName().value().toString();
     }
 
     private String parenthesize(String name, Expression... expressions) {
@@ -74,9 +89,44 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
             builder.append(" ");
             builder.append(expr.accept(this));
         }
+
         builder.append(")");
 
         return builder.toString();
+    }
+
+    private String parenthesize(Expression expression, Expression... expressions) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("(").append(expression.accept(this));
+        for (Expression expr : expressions) {
+            builder.append(" ");
+            builder.append(expr.accept(this));
+        }
+
+        builder.append(")");
+
+        return builder.toString();
+    }
+
+    @Override
+    public Void visitAssignStatement(Statement.AssignStatement statement) {
+        return null;
+    }
+
+    @Override
+    public Void visitBlockStatement(Statement.BlockStatement statement) {
+        return null;
+    }
+
+    @Override
+    public Void visitBreakStatement(Statement.BreakStatement statement) {
+        return null;
+    }
+
+    @Override
+    public Void visitContinueStatement(Statement.ContinueStatement statement) {
+        return null;
     }
 
     @Override
@@ -85,12 +135,22 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
     }
 
     @Override
-    public Void visitPrintStatement(Statement.PrintStatement statement) {
+    public Void visitFunctionStatement(Statement.FunctionStatement statement) {
+        return null;
+    }
+
+    @Override
+    public Void visitIfStatement(Statement.IfStatement statement) {
         return null;
     }
 
     @Override
     public Void visitVariableStatement(Statement.VariableStatement statement) {
+        return null;
+    }
+
+    @Override
+    public Void visitWhileStatement(Statement.WhileStatement statement) {
         return null;
     }
 }

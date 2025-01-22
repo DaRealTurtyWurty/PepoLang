@@ -4,8 +4,11 @@ package dev.turtywurty.pepolang.parser;
 import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.parser.Expression.Assign;
 import dev.turtywurty.pepolang.parser.Expression.Binary;
+import dev.turtywurty.pepolang.parser.Expression.Call;
+import dev.turtywurty.pepolang.parser.Expression.Function;
 import dev.turtywurty.pepolang.parser.Expression.Grouping;
 import dev.turtywurty.pepolang.parser.Expression.Literal;
+import dev.turtywurty.pepolang.parser.Expression.Logical;
 import dev.turtywurty.pepolang.parser.Expression.Unary;
 import dev.turtywurty.pepolang.parser.Expression.Variable;
 
@@ -15,9 +18,15 @@ public interface ExpressionVisitor<R> {
 
     R visitBinary(Binary expression);
 
+    R visitCall(Call expression);
+
+    R visitFunction(Function expression);
+
     R visitGrouping(Grouping expression);
 
     R visitLiteral(Literal expression);
+
+    R visitLogical(Logical expression);
 
     R visitUnary(Unary expression);
 

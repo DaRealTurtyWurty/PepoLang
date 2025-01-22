@@ -21,10 +21,11 @@ public class AstGenerator {
         String outputDir = args[0];
 
         var expression = ClassName.get("dev.turtywurty.pepolang.parser", "Expression");
+        var statement = ClassName.get("dev.turtywurty.pepolang.parser", "Statement");
 
         TreeMap<String, TreeMap<String, TypeName>> expressionTypes = CollectionUtility.createTreeMap(
                 "Assign", CollectionUtility.createTreeMap(
-                        "name", TypeName.get(Token.class), // TODO: Add type
+                        "name", TypeName.get(Token.class),
                         "value", expression
                 ),
                 "Binary", CollectionUtility.createTreeMap(
@@ -32,11 +33,21 @@ public class AstGenerator {
                         "operator", TypeName.get(Token.class),
                         "right", expression
                 ),
+                "Call", CollectionUtility.createTreeMap(
+                        "callee", expression,
+                        "paren", TypeName.get(Token.class),
+                        "arguments", ParameterizedTypeName.get(ClassName.get(List.class), expression)
+                ),
                 "Grouping", CollectionUtility.createTreeMap(
                         "expression", expression
                 ),
                 "Literal", CollectionUtility.createTreeMap(
                         "value", TypeName.get(Object.class)
+                ),
+                "Logical", CollectionUtility.createTreeMap(
+                        "left", expression,
+                        "operator", TypeName.get(Token.class),
+                        "right", expression
                 ),
                 "Unary", CollectionUtility.createTreeMap(
                         "operator", TypeName.get(Token.class),
@@ -44,20 +55,48 @@ public class AstGenerator {
                 ),
                 "Variable", CollectionUtility.createTreeMap(
                         "name", TypeName.get(Token.class)
+                ),
+                "Function", CollectionUtility.createTreeMap(
+                        "name", TypeName.get(Token.class)
                 )
         );
 
         TreeMap<String, TreeMap<String, TypeName>> statementTypes = CollectionUtility.createTreeMap(
+                "BlockStatement", CollectionUtility.createTreeMap(
+                        "statements", ParameterizedTypeName.get(ClassName.get(List.class), statement)
+                ),
+                "FunctionStatement", CollectionUtility.createTreeMap(
+                        "name", TypeName.get(Token.class),
+                        "returnType", TypeName.get(Token.class),
+                        "parameters", ParameterizedTypeName.get(ClassName.get(Map.class), TypeName.get(Token.class), TypeName.get(Token.class)),
+                        "body", ParameterizedTypeName.get(ClassName.get(List.class), statement)
+                ),
                 "ExpressionStatement", CollectionUtility.createTreeMap(
                         "expression", expression
                 ),
-                "PrintStatement", CollectionUtility.createTreeMap(
-                        "expression", expression
+                "IfStatement", CollectionUtility.createTreeMap(
+                        "condition", expression,
+                        "thenBranch", statement,
+                        "elseBranch", statement
                 ),
                 "VariableStatement", CollectionUtility.createTreeMap(
                         "type", TypeName.get(Token.class),
                         "name", TypeName.get(Token.class),
                         "initializer", expression
+                ),
+                "AssignStatement", CollectionUtility.createTreeMap(
+                        "name", TypeName.get(Token.class),
+                        "value", expression
+                ),
+                "WhileStatement", CollectionUtility.createTreeMap(
+                        "condition", expression,
+                        "body", statement
+                ),
+                "BreakStatement", CollectionUtility.createTreeMap(),
+                "ContinueStatement", CollectionUtility.createTreeMap(),
+                "ReturnStatement", CollectionUtility.createTreeMap(
+                        "keyword", TypeName.get(Token.class),
+                        "value", expression
                 )
         );
 

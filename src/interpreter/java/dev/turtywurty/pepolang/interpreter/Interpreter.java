@@ -1,13 +1,99 @@
 package dev.turtywurty.pepolang.interpreter;
 
 import dev.turtywurty.pepolang.lexer.Token;
+import dev.turtywurty.pepolang.lexer.TokenType;
 import dev.turtywurty.pepolang.parser.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<Void> {
-    private final Environment environment = new Environment();
+    private final Environment globals = new Environment();
+    private Environment environment = globals;
+
+    public Interpreter() {
+        this.globals.defineFunction("print", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                Object value = arguments.getFirst();
+                System.out.println(stringify(value));
+                return null;
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("time", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 0;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                return System.currentTimeMillis();
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("random", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 2;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                Object min = arguments.get(0);
+                Object max = arguments.get(1);
+
+                if(!(min instanceof Number minNum && max instanceof Number maxNum))
+                    throw new RuntimeError(null, "Both arguments must be numbers!");
+
+                return Math.random() * (maxNum.doubleValue() - minNum.doubleValue()) + minNum.doubleValue();
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("sqrt", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                Object value = arguments.getFirst();
+
+                if(!(value instanceof Number num))
+                    throw new RuntimeError(null, "Argument must be a number!");
+
+                return Math.sqrt(num.doubleValue());
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+    }
 
     public void interpret(List<Statement> statements) {
         try {
@@ -31,7 +117,7 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     @Override
     public Object visitAssign(Expression.Assign expression) {
         Object value = evaluate(expression.getValue());
-        environment.assign(expression.getName(), value);
+        environment.assignVariable(expression.getName(), value);
         return value;
     }
 
@@ -54,6 +140,13 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
 
                 if (left instanceof String leftStr && right instanceof String rightStr)
                     return leftStr + rightStr;
+
+                // If one of the operands is a string, convert the other to a string
+                if (left instanceof String leftStr)
+                    return leftStr + stringify(right);
+
+                if (right instanceof String rightStr)
+                    return stringify(left) + rightStr;
 
                 throw new RuntimeError(expression.getOperator(), "Operands must be two numbers or two strings.");
             }
@@ -127,6 +220,24 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     }
 
     @Override
+    public Object visitCall(Expression.Call expression) {
+        Object callee = evaluate(expression.getCallee());
+
+        List<Object> arguments = new ArrayList<>();
+        for (Expression argument : expression.getArguments()) {
+            arguments.add(evaluate(argument));
+        }
+
+        if(!(callee instanceof PepoCallable function))
+            throw new RuntimeError(expression.getParen(), "Only functions can be called.");
+
+        if(arguments.size() != function.arity())
+            throw new RuntimeError(expression.getParen(), "Expected " + function.arity() + " arguments but got " + arguments.size() + ".");
+
+        return function.call(this, arguments);
+    }
+
+    @Override
     public Object visitGrouping(Expression.Grouping expression) {
         return evaluate(expression.getExpression());
     }
@@ -134,6 +245,19 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     @Override
     public Object visitLiteral(Expression.Literal expression) {
         return expression.getValue();
+    }
+
+    @Override
+    public Object visitLogical(Expression.Logical expression) {
+        Object left = evaluate(expression.getLeft());
+
+        if (expression.getOperator().type() == TokenType.OR) {
+            if (isTruthy(left)) return left;
+        } else {
+            if (!isTruthy(left)) return left;
+        }
+
+        return evaluate(expression.getRight());
     }
 
     @Override
@@ -150,7 +274,12 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
 
     @Override
     public Object visitVariable(Expression.Variable expression) {
-        return environment.get((String) expression.getName().value());
+        return environment.getVariable((String) expression.getName().value());
+    }
+
+    @Override
+    public Object visitFunction(Expression.Function expression) {
+        return environment.getFunction((String) expression.getName().value());
     }
 
     private void checkNumberOperand(Token operator, Object operand) {
@@ -178,16 +307,73 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     }
 
     @Override
+    public Void visitAssignStatement(Statement.AssignStatement statement) {
+        Object value = evaluate(statement.getValue());
+        environment.assignVariable(statement.getName(), value);
+        return null;
+    }
+
+    @Override
+    public Void visitBlockStatement(Statement.BlockStatement statement) {
+        executeBlock(statement.getStatements(), new Environment(environment));
+        return null;
+    }
+
+    @Override
+    public Void visitBreakStatement(Statement.BreakStatement statement) {
+        throw new Break();
+    }
+
+    @Override
+    public Void visitContinueStatement(Statement.ContinueStatement statement) {
+        throw new Continue();
+    }
+
+    public void executeBlock(List<Statement> statements, Environment environment) {
+        Environment previous = this.environment;
+        try {
+            this.environment = environment;
+
+            for (Statement statement : statements) {
+                execute(statement);
+            }
+        } finally {
+            this.environment = previous;
+        }
+    }
+
+    @Override
     public Void visitExpressionStatement(Statement.ExpressionStatement statement) {
         evaluate(statement.getExpression());
         return null;
     }
 
     @Override
-    public Void visitPrintStatement(Statement.PrintStatement statement) {
-        Object value = evaluate(statement.getExpression());
-        System.out.println(stringify(value));
+    public Void visitFunctionStatement(Statement.FunctionStatement statement) {
+        PepoFunction function = new PepoFunction(statement);
+        environment.defineFunction(statement.getName().value().toString(), function);
         return null;
+    }
+
+    @Override
+    public Void visitIfStatement(Statement.IfStatement statement) {
+        if (isTruthy(evaluate(statement.getCondition()))) {
+            execute(statement.getThenBranch());
+        } else if (statement.getElseBranch() != null) {
+            execute(statement.getElseBranch());
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitReturnStatement(Statement.ReturnStatement statement) {
+        Object value = null;
+        if (statement.getValue() != null) {
+            value = evaluate(statement.getValue());
+        }
+
+        throw new Return(value);
     }
 
     @Override
@@ -197,8 +383,25 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
             value = evaluate(statement.getInitializer());
         }
 
-        environment.define((String) statement.getName().value(), value); // TODO: Handle types
+        environment.defineVariable((String) statement.getName().value(), value); // TODO: Handle types
         return null;
+    }
+
+    @Override
+    public Void visitWhileStatement(Statement.WhileStatement statement) {
+        while (isTruthy(evaluate(statement.getCondition()))) {
+            try {
+                execute(statement.getBody());
+            } catch (Break ignored) {
+                break;
+            } catch (Continue ignored) {}
+        }
+
+        return null;
+    }
+
+    public Environment getGlobals() {
+        return this.globals;
     }
 
     public static class RuntimeError extends RuntimeException {
@@ -207,6 +410,27 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
         RuntimeError(Token token, String message) {
             super(message);
             this.token = token;
+        }
+    }
+
+    public static class Break extends RuntimeException {
+        Break() {
+            super(null, null, false, false);
+        }
+    }
+
+    public static class Continue extends RuntimeException {
+        Continue() {
+            super(null, null, false, false);
+        }
+    }
+
+    public static class Return extends RuntimeException {
+        public final Object value;
+
+        Return(Object value) {
+            super(null, null, false, false);
+            this.value = value;
         }
     }
 }

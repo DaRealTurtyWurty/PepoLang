@@ -3,6 +3,7 @@ package dev.turtywurty.pepolang.parser;
 
 import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.lexer.Token;
+import java.util.List;
 
 @JavaGenerated
 public abstract class Expression {
@@ -63,6 +64,54 @@ public abstract class Expression {
         }
     }
 
+    public static class Call extends Expression {
+        private final List<Expression> arguments;
+
+        private final Expression callee;
+
+        private final Token paren;
+
+        public Call(List<Expression> arguments, Expression callee, Token paren) {
+            this.arguments = arguments;
+            this.callee = callee;
+            this.paren = paren;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitCall(this);
+        }
+
+        public List<Expression> getArguments() {
+            return this.arguments;
+        }
+
+        public Expression getCallee() {
+            return this.callee;
+        }
+
+        public Token getParen() {
+            return this.paren;
+        }
+    }
+
+    public static class Function extends Expression {
+        private final Token name;
+
+        public Function(Token name) {
+            this.name = name;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitFunction(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+    }
+
     public static class Grouping extends Expression {
         private final Expression expression;
 
@@ -94,6 +143,37 @@ public abstract class Expression {
 
         public Object getValue() {
             return this.value;
+        }
+    }
+
+    public static class Logical extends Expression {
+        private final Expression left;
+
+        private final Token operator;
+
+        private final Expression right;
+
+        public Logical(Expression left, Token operator, Expression right) {
+            this.left = left;
+            this.operator = operator;
+            this.right = right;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitLogical(this);
+        }
+
+        public Expression getLeft() {
+            return this.left;
+        }
+
+        public Token getOperator() {
+            return this.operator;
+        }
+
+        public Expression getRight() {
+            return this.right;
         }
     }
 
