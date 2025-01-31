@@ -33,12 +33,14 @@ public enum TokenType {
     LBRACKET,
     RBRACKET,
     COMMA,
+    DOT,
 
     // Arithmetic
     ADD,
     SUB,
     MUL,
     DIV,
+    MOD,
 
     // Comparison
     ASSIGN,
@@ -70,6 +72,11 @@ public enum TokenType {
     KEYWORD_SHORT,
     KEYWORD_CHAR,
     KEYWORD_FINAL,
+    KEYWORD_STATIC,
+    KEYWORD_THIS,
+    KEYWORD_SUPER,
+    KEYWORD_NEW,
+    KEYWORD_EXTENDS,
 
     // Operators
     PLUS_PLUS,
@@ -101,10 +108,12 @@ public enum TokenType {
         put('-', SUB);
         put('*', MUL);
         put('/', DIV);
+        put('%', MOD);
         put('=', ASSIGN);
         put('!', NOT);
         put('>', GT);
         put('<', LT);
+        put('.', DOT);
     }};
 
     public static final Map<Character, List<Map.Entry<String, TokenType>>> MULTI_CHAR_TOKENS = new HashMap<>() {{
@@ -139,6 +148,11 @@ public enum TokenType {
         put("null", KEYWORD_NULL);
         put("import", KEYWORD_IMPORT);
         put("class", KEYWORD_CLASS);
+        put("static", KEYWORD_STATIC);
+        put("this", KEYWORD_THIS);
+        put("super", KEYWORD_SUPER);
+        put("new", KEYWORD_NEW);
+        put("extends", KEYWORD_EXTENDS);
     }};
 
     public boolean isNonDecimalIntegralLiteral() {

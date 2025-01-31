@@ -8,8 +8,9 @@ import java.util.Map;
 
 public class Environment {
     private final Environment enclosing;
+    private final Map<String, PepoClass> classes = new HashMap<>();
     private final Map<String, Object> variables = new HashMap<>();
-    private final Map<String, Object> functions = new HashMap<>();
+    private final Map<String, PepoCallable> functions = new HashMap<>();
 
     // local environment
     public Environment(Environment enclosing) {
@@ -21,6 +22,17 @@ public class Environment {
         this.enclosing = null;
     }
 
+    public Environment getEnclosing() {
+        return this.enclosing;
+    }
+
+    public void defineClass(String name, PepoClass value) {
+        if (this.classes.containsKey(name))
+            throw new RuntimeError("Class with name '" + name + "' already defined!");
+
+        this.classes.put(name, value);
+    }
+
     public void defineVariable(String name, Object value) {
         if (this.variables.containsKey(name))
             throw new RuntimeError("Variable with name '" + name + "' already defined!");
@@ -28,11 +40,45 @@ public class Environment {
         this.variables.put(name, value);
     }
 
-    public void defineFunction(String name, Object value) {
+    public void defineFunction(String name, PepoCallable value) {
         if (this.functions.containsKey(name))
             throw new RuntimeError("Function with name '" + name + "' already defined!");
 
         this.functions.put(name, value);
+    }
+
+    public Object getVariableAt(int distance, String name) {
+        return ancestor(distance).getVariable(name);
+    }
+
+    public Object getFunctionAt(int distance, String name) {
+        return ancestor(distance).getFunction(name);
+    }
+
+    public PepoClass getClassAt(int distance, String name) {
+        return ancestor(distance).getClass(name);
+    }
+
+    public void assignVariableAt(int distance, Token token, Object value) {
+        ancestor(distance).assignVariable(token, value);
+    }
+
+    private Environment ancestor(int distance) {
+        Environment environment = this;
+        for (int i = 0; i < distance; i++) {
+            environment = environment.getEnclosing();
+        }
+
+        return environment;
+    }
+
+    public PepoClass getClass(String name) {
+        if(this.classes.containsKey(name))
+            return this.classes.get(name);
+        else if(this.enclosing != null)
+            return this.enclosing.getClass(name);
+
+        throw new RuntimeError("Class with name '" + name + "' not defined!");
     }
 
     public Object getVariable(String name) {
@@ -44,7 +90,7 @@ public class Environment {
         throw new RuntimeError("Variable with name '" + name + "' not defined!");
     }
 
-    public Object getFunction(String name) {
+    public PepoCallable getFunction(String name) {
         if(this.functions.containsKey(name))
             return this.functions.get(name);
         else if(this.enclosing != null)

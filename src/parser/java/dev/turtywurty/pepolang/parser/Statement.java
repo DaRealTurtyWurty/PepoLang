@@ -4,11 +4,239 @@ package dev.turtywurty.pepolang.parser;
 import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.lexer.Token;
 import java.util.List;
-import java.util.Map;
+import org.jetbrains.annotations.Nullable;
 
 @JavaGenerated
 public abstract class Statement {
     public abstract <R> R accept(StatementVisitor<R> visitor);
+
+    public static class BlockStatement extends Statement {
+        private final List<Statement> statements;
+
+        public BlockStatement(List<Statement> statements) {
+            this.statements = statements;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitBlockStatement(this);
+        }
+
+        public List<Statement> getStatements() {
+            return this.statements;
+        }
+    }
+
+    public static class FunctionStatement extends Statement {
+        private final Token name;
+
+        private final Token returnType;
+
+        private final List<Parameter> parameters;
+
+        private final List<Statement> body;
+
+        public FunctionStatement(Token name, Token returnType, List<Parameter> parameters,
+                List<Statement> body) {
+            this.name = name;
+            this.returnType = returnType;
+            this.parameters = parameters;
+            this.body = body;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitFunctionStatement(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Token getReturnType() {
+            return this.returnType;
+        }
+
+        public List<Parameter> getParameters() {
+            return this.parameters;
+        }
+
+        public List<Statement> getBody() {
+            return this.body;
+        }
+    }
+
+    public static class VariableStatement extends Statement {
+        private final Token type;
+
+        private final Token name;
+
+        private final Expression initializer;
+
+        public VariableStatement(Token type, Token name, Expression initializer) {
+            this.type = type;
+            this.name = name;
+            this.initializer = initializer;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitVariableStatement(this);
+        }
+
+        public Token getType() {
+            return this.type;
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Expression getInitializer() {
+            return this.initializer;
+        }
+    }
+
+    public static class ClassStatement extends Statement {
+        private final Token name;
+
+        private final Expression. @Nullable Extends superclass;
+
+        private final List<ConstructorStatement> constructors;
+
+        private final List<FunctionStatement> methods;
+
+        private final List<VariableStatement> fields;
+
+        private final List<FunctionStatement> staticMethods;
+
+        private final List<VariableStatement> staticFields;
+
+        public ClassStatement(Token name, Expression. @Nullable Extends superclass,
+                List<ConstructorStatement> constructors, List<FunctionStatement> methods,
+                List<VariableStatement> fields, List<FunctionStatement> staticMethods,
+                List<VariableStatement> staticFields) {
+            this.name = name;
+            this.superclass = superclass;
+            this.constructors = constructors;
+            this.methods = methods;
+            this.fields = fields;
+            this.staticMethods = staticMethods;
+            this.staticFields = staticFields;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitClassStatement(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Expression. @Nullable Extends getSuperclass() {
+            return this.superclass;
+        }
+
+        public List<ConstructorStatement> getConstructors() {
+            return this.constructors;
+        }
+
+        public List<FunctionStatement> getMethods() {
+            return this.methods;
+        }
+
+        public List<VariableStatement> getFields() {
+            return this.fields;
+        }
+
+        public List<FunctionStatement> getStaticMethods() {
+            return this.staticMethods;
+        }
+
+        public List<VariableStatement> getStaticFields() {
+            return this.staticFields;
+        }
+    }
+
+    public static class ConstructorStatement extends Statement {
+        private final Token name;
+
+        private final List<Parameter> parameters;
+
+        private final List<Statement> body;
+
+        public ConstructorStatement(Token name, List<Parameter> parameters, List<Statement> body) {
+            this.name = name;
+            this.parameters = parameters;
+            this.body = body;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitConstructorStatement(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public List<Parameter> getParameters() {
+            return this.parameters;
+        }
+
+        public List<Statement> getBody() {
+            return this.body;
+        }
+    }
+
+    public static class ExpressionStatement extends Statement {
+        private final Expression expression;
+
+        public ExpressionStatement(Expression expression) {
+            this.expression = expression;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitExpressionStatement(this);
+        }
+
+        public Expression getExpression() {
+            return this.expression;
+        }
+    }
+
+    public static class IfStatement extends Statement {
+        private final Expression condition;
+
+        private final Statement thenBranch;
+
+        private final Statement elseBranch;
+
+        public IfStatement(Expression condition, Statement thenBranch, Statement elseBranch) {
+            this.condition = condition;
+            this.thenBranch = thenBranch;
+            this.elseBranch = elseBranch;
+        }
+
+        @Override
+        public <R> R accept(StatementVisitor<R> visitor) {
+            return visitor.visitIfStatement(this);
+        }
+
+        public Expression getCondition() {
+            return this.condition;
+        }
+
+        public Statement getThenBranch() {
+            return this.thenBranch;
+        }
+
+        public Statement getElseBranch() {
+            return this.elseBranch;
+        }
+    }
 
     public static class AssignStatement extends Statement {
         private final Token name;
@@ -34,20 +262,27 @@ public abstract class Statement {
         }
     }
 
-    public static class BlockStatement extends Statement {
-        private final List<Statement> statements;
+    public static class WhileStatement extends Statement {
+        private final Expression condition;
 
-        public BlockStatement(List<Statement> statements) {
-            this.statements = statements;
+        private final Statement body;
+
+        public WhileStatement(Expression condition, Statement body) {
+            this.condition = condition;
+            this.body = body;
         }
 
         @Override
         public <R> R accept(StatementVisitor<R> visitor) {
-            return visitor.visitBlockStatement(this);
+            return visitor.visitWhileStatement(this);
         }
 
-        public List<Statement> getStatements() {
-            return this.statements;
+        public Expression getCondition() {
+            return this.condition;
+        }
+
+        public Statement getBody() {
+            return this.body;
         }
     }
 
@@ -68,93 +303,6 @@ public abstract class Statement {
         @Override
         public <R> R accept(StatementVisitor<R> visitor) {
             return visitor.visitContinueStatement(this);
-        }
-    }
-
-    public static class ExpressionStatement extends Statement {
-        private final Expression expression;
-
-        public ExpressionStatement(Expression expression) {
-            this.expression = expression;
-        }
-
-        @Override
-        public <R> R accept(StatementVisitor<R> visitor) {
-            return visitor.visitExpressionStatement(this);
-        }
-
-        public Expression getExpression() {
-            return this.expression;
-        }
-    }
-
-    public static class FunctionStatement extends Statement {
-        private final List<Statement> body;
-
-        private final Token name;
-
-        private final Map<Token, Token> parameters;
-
-        private final Token returnType;
-
-        public FunctionStatement(List<Statement> body, Token name, Map<Token, Token> parameters,
-                Token returnType) {
-            this.body = body;
-            this.name = name;
-            this.parameters = parameters;
-            this.returnType = returnType;
-        }
-
-        @Override
-        public <R> R accept(StatementVisitor<R> visitor) {
-            return visitor.visitFunctionStatement(this);
-        }
-
-        public List<Statement> getBody() {
-            return this.body;
-        }
-
-        public Token getName() {
-            return this.name;
-        }
-
-        public Map<Token, Token> getParameters() {
-            return this.parameters;
-        }
-
-        public Token getReturnType() {
-            return this.returnType;
-        }
-    }
-
-    public static class IfStatement extends Statement {
-        private final Expression condition;
-
-        private final Statement elseBranch;
-
-        private final Statement thenBranch;
-
-        public IfStatement(Expression condition, Statement elseBranch, Statement thenBranch) {
-            this.condition = condition;
-            this.elseBranch = elseBranch;
-            this.thenBranch = thenBranch;
-        }
-
-        @Override
-        public <R> R accept(StatementVisitor<R> visitor) {
-            return visitor.visitIfStatement(this);
-        }
-
-        public Expression getCondition() {
-            return this.condition;
-        }
-
-        public Statement getElseBranch() {
-            return this.elseBranch;
-        }
-
-        public Statement getThenBranch() {
-            return this.thenBranch;
         }
     }
 
@@ -179,61 +327,6 @@ public abstract class Statement {
 
         public Expression getValue() {
             return this.value;
-        }
-    }
-
-    public static class VariableStatement extends Statement {
-        private final Expression initializer;
-
-        private final Token name;
-
-        private final Token type;
-
-        public VariableStatement(Expression initializer, Token name, Token type) {
-            this.initializer = initializer;
-            this.name = name;
-            this.type = type;
-        }
-
-        @Override
-        public <R> R accept(StatementVisitor<R> visitor) {
-            return visitor.visitVariableStatement(this);
-        }
-
-        public Expression getInitializer() {
-            return this.initializer;
-        }
-
-        public Token getName() {
-            return this.name;
-        }
-
-        public Token getType() {
-            return this.type;
-        }
-    }
-
-    public static class WhileStatement extends Statement {
-        private final Statement body;
-
-        private final Expression condition;
-
-        public WhileStatement(Statement body, Expression condition) {
-            this.body = body;
-            this.condition = condition;
-        }
-
-        @Override
-        public <R> R accept(StatementVisitor<R> visitor) {
-            return visitor.visitWhileStatement(this);
-        }
-
-        public Statement getBody() {
-            return this.body;
-        }
-
-        public Expression getCondition() {
-            return this.condition;
         }
     }
 }

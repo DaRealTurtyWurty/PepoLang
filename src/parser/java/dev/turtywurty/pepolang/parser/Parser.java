@@ -4,10 +4,7 @@ import dev.turtywurty.pepolang.lexer.LexerMain;
 import dev.turtywurty.pepolang.lexer.Token;
 import dev.turtywurty.pepolang.lexer.TokenType;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Predicate;
 
 public class Parser {
@@ -36,19 +33,20 @@ public class Parser {
 
     private Statement declaration() {
         try {
-            if (match(TokenType::isTypeKeyword) && check(TokenType.IDENTIFIER))
+            if(match(TokenType.KEYWORD_CLASS))
+                return classDeclaration();
+
+            if (match(TokenType::isTypeKeyword) && check(TokenType.IDENTIFIER)) // int a
                 return variableOrFunctionDeclaration();
 
             if (check(TokenType.IDENTIFIER)) {
-                if (check(TokenType.ASSIGN, 1)) {
+                if (check(TokenType.ASSIGN, 1)) { // a =
                     advance(); // we didn't match so we need to advance to the next token
                     return assignStatement();
                 }
 
-                if(check(TokenType.IDENTIFIER, 1)) {
+                if(check(TokenType.IDENTIFIER, 1)) { // Foo a
                     advance(); // we didn't match so we need to advance to the next token
-
-                    // could be a type. for example: Statement s = null;
                     return variableOrFunctionDeclaration();
                 }
             }
@@ -58,6 +56,65 @@ public class Parser {
             synchronize();
             return null;
         }
+    }
+
+    private Statement classDeclaration() {
+        Token name = consume(TokenType.IDENTIFIER, "Expected name of class.");
+        Token superclass = null;
+        if(match(TokenType.KEYWORD_EXTENDS)) {
+            superclass = consume(TokenType.IDENTIFIER, "Expected superclass name.");
+            if(Objects.equals(name.value(), superclass.value())) {
+                throw error(superclass, "A class cannot extend itself.");
+            }
+        }
+
+        consume(TokenType.LBRACE, "Expected '{' after class name.");
+
+        List<Statement.FunctionStatement> methods = new ArrayList<>();
+        List<Statement.VariableStatement> fields = new ArrayList<>();
+        List<Statement.ConstructorStatement> constructors = new ArrayList<>();
+        List<Statement.FunctionStatement> staticMethods = new ArrayList<>();
+        List<Statement.VariableStatement> staticFields = new ArrayList<>();
+
+        while(!check(TokenType.RBRACE)) {
+            if(match(TokenType.KEYWORD_STATIC)) {
+                consume(tokenType -> tokenType.isTypeKeyword() || tokenType == TokenType.IDENTIFIER, "Expected type or identifier after 'static'.");
+
+                Statement statement = variableOrFunctionDeclaration();
+                if(statement instanceof Statement.FunctionStatement fStatement)
+                    staticMethods.add(fStatement);
+                else if(statement instanceof Statement.VariableStatement vStatement)
+                    staticFields.add(vStatement);
+                continue;
+            }
+
+            if (check(TokenType.IDENTIFIER)) {
+                Token identifier = previous();
+                if(Objects.equals(identifier.value(), name.value())) {
+                    constructors.add(constructorDeclaration(name));
+                    continue;
+                }
+            }
+
+            if(match(tokenType -> tokenType.isTypeKeyword() || tokenType == TokenType.IDENTIFIER)) {
+                Statement statement = variableOrFunctionDeclaration();
+                if(statement instanceof Statement.FunctionStatement fStatement)
+                    methods.add(fStatement);
+                else if(statement instanceof Statement.VariableStatement vStatement)
+                    fields.add(vStatement);
+                continue;
+            }
+
+            throw error(peek(), "Expected class member declaration.");
+        }
+
+        consume(TokenType.RBRACE, "Expected '}' after class body.");
+        return new Statement.ClassStatement(
+                name,
+                superclass != null ? new Expression.Extends(superclass) : null,
+                constructors,
+                methods, fields,
+                staticMethods, staticFields);
     }
 
     private Statement variableOrFunctionDeclaration() {
@@ -73,21 +130,27 @@ public class Parser {
         return variableDeclaration(type, name);
     }
 
-    private Statement functionDeclaration(Token type, Token name) {
-        Map<Token, Token> parameters = new HashMap<>();
+    private List<Parameter> parseParameters() {
+        List<Parameter> parameters = new ArrayList<>();
         if (!check(TokenType.RPAREN)) {
             do {
                 Token parameterType = consume(TokenType::isTypeKeyword, "Expected parameter type.");
                 Token parameterName = consume(TokenType.IDENTIFIER, "Expected parameter name.");
-                parameters.put(parameterName, parameterType);
+                parameters.add(new Parameter(parameterName, parameterType));
             } while (match(TokenType.COMMA));
         }
+
+        return parameters;
+    }
+
+    private Statement functionDeclaration(Token type, Token name) {
+        List<Parameter> parameters = parseParameters();
 
         consume(TokenType.RPAREN, "Expected ')' after function parameters.");
         consume(TokenType.LBRACE, "Expected '{' before function body.");
 
         List<Statement> body = block();
-        return new Statement.FunctionStatement(body, name, parameters, type);
+        return new Statement.FunctionStatement(name, type, parameters, body);
     }
 
     private Statement variableDeclaration(Token type, Token name) {
@@ -97,7 +160,17 @@ public class Parser {
         }
 
         consume(TokenType.SEMICOLON, "Expected ';' after variable declaration.");
-        return new Statement.VariableStatement(initializer, name, type);
+        return new Statement.VariableStatement(type, name, initializer);
+    }
+
+    private Statement.ConstructorStatement constructorDeclaration(Token name) {
+        List<Parameter> parameters = parseParameters();
+
+        consume(TokenType.RPAREN, "Expected ')' after function parameters.");
+        consume(TokenType.LBRACE, "Expected '{' before function body.");
+
+        List<Statement> body = block(true);
+        return new Statement.ConstructorStatement(name, parameters, body);
     }
 
     private Statement assignStatement() {
@@ -178,7 +251,7 @@ public class Parser {
             // Add condition to the start of the body as a while loop
             if (condition == null)
                 condition = new Expression.Literal(true);
-            body = new Statement.WhileStatement(body, condition);
+            body = new Statement.WhileStatement(condition, body);
 
             // Add initializer to the start of the body
             if(initializer != null)
@@ -202,7 +275,7 @@ public class Parser {
             elseBranch = statement();
         }
 
-        return new Statement.IfStatement(condition, elseBranch, thenBranch);
+        return new Statement.IfStatement(condition, thenBranch, elseBranch);
     }
 
     private Statement returnStatement() {
@@ -226,13 +299,18 @@ public class Parser {
             consume(TokenType.RPAREN, "Expected ')' after condition.");
 
             Statement body = statement();
-            return new Statement.WhileStatement(body, condition);
+            return new Statement.WhileStatement(condition, body);
         } finally {
             this.loopDepth--;
         }
     }
 
     private List<Statement> block() {
+        return block(false);
+    }
+
+    // TODO: Constructor body should be much stricter and not allow for return statements among other things
+    private List<Statement> block(boolean isConstructorBody) {
         List<Statement> statements = new ArrayList<>();
 
         while (!check(TokenType.RBRACE) && !isAtEnd()) {
@@ -263,6 +341,8 @@ public class Parser {
             if (expression instanceof Expression.Variable variable) {
                 Token name = variable.getName();
                 return new Expression.Assign(name, value);
+            } else if (expression instanceof Expression.Get get) {
+                return new Expression.Set(get.getObject(), get.getName(), value);
             }
 
             throw error(equals, "Invalid assignment target.");
@@ -272,75 +352,75 @@ public class Parser {
     }
 
     private Expression or() {
-        Expression expression = and();
+        Expression left = and();
 
         while (match(TokenType.OR)) {
             Token operator = previous();
             Expression right = and();
-            expression = new Expression.Logical(expression, operator, right);
+            left = new Expression.Logical(left, operator, right);
         }
 
-        return expression;
+        return left;
     }
 
     private Expression and() {
-        Expression expression = equality();
+        Expression left = equality();
 
         while (match(TokenType.AND)) {
             Token operator = previous();
             Expression right = equality();
-            expression = new Expression.Logical(expression, operator, right);
+            left = new Expression.Logical(left, operator, right);
         }
 
-        return expression;
+        return left;
     }
 
     private Expression equality() {
-        Expression expression = comparison();
+        Expression left = comparison();
 
         while (match(TokenType.NOT_EQUAL, TokenType.EQUAL)) {
             Token operator = previous();
             Expression right = comparison();
-            expression = new Expression.Binary(expression, operator, right);
+            left = new Expression.Binary(left, operator, right);
         }
 
-        return expression;
+        return left;
     }
 
     private Expression comparison() {
-        Expression expression = term();
+        Expression left = term();
 
         while (match(TokenType.GT, TokenType.LT, TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL)) {
             Token operator = previous();
             Expression right = term();
-            expression = new Expression.Binary(expression, operator, right);
+            left = new Expression.Binary(left, operator, right);
         }
 
-        return expression;
+        return left;
     }
 
     private Expression term() {
-        Expression expression = factor();
+        Expression left = factor();
 
         while (match(TokenType.ADD, TokenType.SUB)) {
             Token operator = previous();
             Expression right = factor();
-            expression = new Expression.Binary(expression, operator, right);
+            left = new Expression.Binary(left, operator, right);
         }
 
-        return expression;
+        return left;
     }
 
     private Expression factor() {
-        Expression expression = unary();
+        Expression left = unary();
 
-        while (match(TokenType.DIV, TokenType.MUL)) {
+        while (match(TokenType.DIV, TokenType.MUL, TokenType.MOD)) {
             Token operator = previous();
             Expression right = unary();
-            expression = new Expression.Binary(expression, operator, right);
+            left = new Expression.Binary(left, operator, right);
         }
 
-        return expression;
+        return left;
     }
 
     private Expression unary() {
@@ -348,6 +428,16 @@ public class Parser {
             Token operator = previous();
             Expression expression = unary();
             new Expression.Unary(operator, expression);
+        }
+
+        return newExpr();
+    }
+
+    private Expression newExpr() {
+        if(match(TokenType.KEYWORD_NEW)) {
+            Token keyword = previous();
+            Expression expression = call();
+            return new Expression.New(keyword, expression);
         }
 
         return call();
@@ -359,6 +449,9 @@ public class Parser {
         while (true) {
             if (match(TokenType.LPAREN)) {
                 expression = finishCall(expression);
+            } else if (match(TokenType.DOT)) {
+                Token name = consume(TokenType.IDENTIFIER, "Expected property name after '.'.");
+                expression = new Expression.Get(expression, name);
             } else {
                 break;
             }
@@ -376,7 +469,7 @@ public class Parser {
         }
 
         Token paren = consume(TokenType.RPAREN, "Expected ')' after arguments.");
-        return new Expression.Call(arguments, callee, paren);
+        return new Expression.Call(callee, paren, arguments);
     }
 
     private Expression primary() {
@@ -386,6 +479,16 @@ public class Parser {
 
         if (match(TokenType.NUMBER_INT, TokenType.NUMBER_HEXADECIMAL, TokenType.NUMBER_BINARY, TokenType.NUMBER_OCTAL, TokenType.NUMBER_FLOAT, TokenType.NUMBER_DOUBLE, TokenType.NUMBER_LONG, TokenType.STRING, TokenType.MULTI_LINE_STRING, TokenType.CHARACTER))
             return new Expression.Literal(previous().value());
+
+        if(match(TokenType.KEYWORD_THIS))
+            return new Expression.This(previous());
+
+        if(match(TokenType.KEYWORD_SUPER)) {
+            Token keyword = previous();
+            consume(TokenType.DOT, "Expected '.' after 'super'.");
+            Token method = consume(TokenType.IDENTIFIER, "Expected superclass method name.");
+            return new Expression.Super(keyword, method);
+        }
 
         if (match(TokenType.IDENTIFIER)) {
             Token name = previous();

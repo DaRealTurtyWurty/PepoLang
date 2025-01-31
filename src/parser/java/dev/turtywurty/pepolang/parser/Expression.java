@@ -65,25 +65,21 @@ public abstract class Expression {
     }
 
     public static class Call extends Expression {
-        private final List<Expression> arguments;
-
         private final Expression callee;
 
         private final Token paren;
 
-        public Call(List<Expression> arguments, Expression callee, Token paren) {
-            this.arguments = arguments;
+        private final List<Expression> arguments;
+
+        public Call(Expression callee, Token paren, List<Expression> arguments) {
             this.callee = callee;
             this.paren = paren;
+            this.arguments = arguments;
         }
 
         @Override
         public <R> R accept(ExpressionVisitor<R> visitor) {
             return visitor.visitCall(this);
-        }
-
-        public List<Expression> getArguments() {
-            return this.arguments;
         }
 
         public Expression getCallee() {
@@ -93,22 +89,129 @@ public abstract class Expression {
         public Token getParen() {
             return this.paren;
         }
+
+        public List<Expression> getArguments() {
+            return this.arguments;
+        }
     }
 
-    public static class Function extends Expression {
+    public static class New extends Expression {
+        private final Token keyword;
+
+        private final Expression call;
+
+        public New(Token keyword, Expression call) {
+            this.keyword = keyword;
+            this.call = call;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitNew(this);
+        }
+
+        public Token getKeyword() {
+            return this.keyword;
+        }
+
+        public Expression getCall() {
+            return this.call;
+        }
+    }
+
+    public static class Get extends Expression {
+        private final Expression object;
+
         private final Token name;
 
-        public Function(Token name) {
+        public Get(Expression object, Token name) {
+            this.object = object;
             this.name = name;
         }
 
         @Override
         public <R> R accept(ExpressionVisitor<R> visitor) {
-            return visitor.visitFunction(this);
+            return visitor.visitGet(this);
+        }
+
+        public Expression getObject() {
+            return this.object;
         }
 
         public Token getName() {
             return this.name;
+        }
+    }
+
+    public static class Set extends Expression {
+        private final Expression object;
+
+        private final Token name;
+
+        private final Expression value;
+
+        public Set(Expression object, Token name, Expression value) {
+            this.object = object;
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitSet(this);
+        }
+
+        public Expression getObject() {
+            return this.object;
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+
+        public Expression getValue() {
+            return this.value;
+        }
+    }
+
+    public static class This extends Expression {
+        private final Token keyword;
+
+        public This(Token keyword) {
+            this.keyword = keyword;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitThis(this);
+        }
+
+        public Token getKeyword() {
+            return this.keyword;
+        }
+    }
+
+    public static class Super extends Expression {
+        private final Token keyword;
+
+        private final Token method;
+
+        public Super(Token keyword, Token method) {
+            this.keyword = keyword;
+            this.method = method;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitSuper(this);
+        }
+
+        public Token getKeyword() {
+            return this.keyword;
+        }
+
+        public Token getMethod() {
+            return this.method;
         }
     }
 
@@ -211,6 +314,40 @@ public abstract class Expression {
         @Override
         public <R> R accept(ExpressionVisitor<R> visitor) {
             return visitor.visitVariable(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+    }
+
+    public static class Function extends Expression {
+        private final Token name;
+
+        public Function(Token name) {
+            this.name = name;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitFunction(this);
+        }
+
+        public Token getName() {
+            return this.name;
+        }
+    }
+
+    public static class Extends extends Expression {
+        private final Token name;
+
+        public Extends(Token name) {
+            this.name = name;
+        }
+
+        @Override
+        public <R> R accept(ExpressionVisitor<R> visitor) {
+            return visitor.visitExtends(this);
         }
 
         public Token getName() {

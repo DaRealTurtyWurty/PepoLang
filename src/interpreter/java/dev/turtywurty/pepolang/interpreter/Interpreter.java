@@ -3,13 +3,19 @@ package dev.turtywurty.pepolang.interpreter;
 import dev.turtywurty.pepolang.lexer.Token;
 import dev.turtywurty.pepolang.lexer.TokenType;
 import dev.turtywurty.pepolang.parser.*;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
 public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<Void> {
     private final Environment globals = new Environment();
+    private final Map<Expression, Integer> localVariables = new HashMap<>();
+    private final Map<Expression, Integer> localFunctions = new HashMap<>();
+    private final Map<Expression, Integer> localClasses = new HashMap<>();
+
     private Environment environment = globals;
 
     public Interpreter() {
@@ -60,7 +66,7 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
                 Object min = arguments.get(0);
                 Object max = arguments.get(1);
 
-                if(!(min instanceof Number minNum && max instanceof Number maxNum))
+                if (!(min instanceof Number minNum && max instanceof Number maxNum))
                     throw new RuntimeError(null, "Both arguments must be numbers!");
 
                 return Math.random() * (maxNum.doubleValue() - minNum.doubleValue()) + minNum.doubleValue();
@@ -82,7 +88,7 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
             public Object call(Interpreter interpreter, List<Object> arguments) {
                 Object value = arguments.getFirst();
 
-                if(!(value instanceof Number num))
+                if (!(value instanceof Number num))
                     throw new RuntimeError(null, "Argument must be a number!");
 
                 return Math.sqrt(num.doubleValue());
@@ -117,7 +123,14 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     @Override
     public Object visitAssign(Expression.Assign expression) {
         Object value = evaluate(expression.getValue());
-        environment.assignVariable(expression.getName(), value);
+
+        Integer distance = localVariables.get(expression);
+        if (distance != null) {
+            environment.assignVariableAt(distance, expression.getName(), value);
+        } else {
+            globals.assignVariable(expression.getName(), value);
+        }
+
         return value;
     }
 
@@ -160,11 +173,18 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
             case DIV -> {
                 checkNumberOperands(expression.getOperator(), left, right);
                 if (left instanceof Number leftNum && right instanceof Number rightNum) {
-                    if(rightNum.doubleValue() == 0)
+                    if (rightNum.doubleValue() == 0)
                         throw new RuntimeError(expression.getOperator(), "Cannot divide by zero!");
 
                     return leftNum.doubleValue() / rightNum.doubleValue();
                 }
+
+                return null;
+            }
+            case MOD -> {
+                checkNumberOperands(expression.getOperator(), left, right);
+                if (left instanceof Number leftNum && right instanceof Number rightNum)
+                    return leftNum.doubleValue() % rightNum.doubleValue();
 
                 return null;
             }
@@ -197,22 +217,22 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
                 return null;
             }
             case EQUAL -> {
-                if (left == null && right == null)
-                    return true;
+                if (left == null && right == null) return true;
+                if (left == null) return false;
 
-                if (left == null)
-                    return false;
+                if (left instanceof Number leftNum && right instanceof Number rightNum)
+                    return Double.compare(leftNum.doubleValue(), rightNum.doubleValue()) == 0;
 
-                return Objects.equals(left, right);
+                return left.equals(right);
             }
             case NOT_EQUAL -> {
-                if (left == null && right == null)
-                    return false;
+                if (left == null && right == null) return false;
+                if (left == null) return true;
 
-                if (left == null)
-                    return true;
+                if (left instanceof Number leftNum && right instanceof Number rightNum)
+                    return Double.compare(leftNum.doubleValue(), rightNum.doubleValue()) != 0;
 
-                return !Objects.equals(left, right);
+                return !left.equals(right);
             }
         }
 
@@ -228,13 +248,75 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
             arguments.add(evaluate(argument));
         }
 
-        if(!(callee instanceof PepoCallable function))
+        if (!(callee instanceof PepoCallable function))
             throw new RuntimeError(expression.getParen(), "Only functions can be called.");
 
-        if(arguments.size() != function.arity())
+        if (arguments.size() != function.arity())
             throw new RuntimeError(expression.getParen(), "Expected " + function.arity() + " arguments but got " + arguments.size() + ".");
 
         return function.call(this, arguments);
+    }
+
+    @Override
+    public Object visitNew(Expression.New expression) {
+        Object call = evaluate(expression.getCall());
+
+        if (!(call instanceof Expression.Call callExpression))
+            throw new RuntimeError(expression.getKeyword(), "Expected a call expression!");
+
+        Object callee = evaluate(callExpression.getCallee());
+        if (!(callee instanceof PepoClass clazz))
+            throw new RuntimeError(expression.getKeyword(), "Expected a class!");
+
+        List<Object> arguments = new ArrayList<>();
+        for (Expression argument : callExpression.getArguments()) {
+            arguments.add(evaluate(argument));
+        }
+
+//        PepoFunction constructor = clazz.findMethod("constructor");
+//        if (constructor == null)
+//            throw new RuntimeError(expression.getKeyword(), "Expected a constructor!");
+//
+//        return constructor.call(this, arguments);
+        return null;
+    }
+
+    @Override
+    public Object visitGet(Expression.Get expression) {
+        Object object = evaluate(expression.getObject());
+        if (object instanceof PepoInstance instance)
+            return instance.get(expression.getName());
+
+        throw new RuntimeError(expression.getName(), "Only instances have properties.");
+    }
+
+    @Override
+    public Object visitSet(Expression.Set expression) {
+        Object object = evaluate(expression.getObject());
+        if (!(object instanceof PepoInstance instance))
+            throw new RuntimeError(expression.getName(), "Only instances have fields.");
+
+        Object value = evaluate(expression.getValue());
+        instance.set(expression.getName(), value);
+        return value;
+    }
+
+    @Override
+    public Object visitThis(Expression.This expression) {
+        return lookUpVariable(expression.getKeyword(), expression);
+    }
+
+    @Override
+    public Object visitSuper(Expression.Super expression) {
+        int distance = this.localVariables.get(expression);
+        PepoClass superclass = this.environment.getClassAt(distance, "super");
+        PepoInstance object = (PepoInstance) this.environment.getVariableAt(distance - 1, "this");
+
+        PepoFunction method = superclass.findMethod((String) expression.getMethod().value());
+        if (method == null)
+            throw new RuntimeError(expression.getMethod(), "Undefined property '" + expression.getMethod().value() + "'.");
+
+        return method.bind(object);
     }
 
     @Override
@@ -274,12 +356,44 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
 
     @Override
     public Object visitVariable(Expression.Variable expression) {
-        return environment.getVariable((String) expression.getName().value());
+        return lookUpVariable(expression.getName(), expression);
+    }
+
+    private Object lookUpVariable(Token name, Expression expression) {
+        Integer distance = localVariables.get(expression);
+        if (distance != null) {
+            return environment.getVariableAt(distance, (String) name.value());
+        } else {
+            return globals.getVariable((String) name.value());
+        }
     }
 
     @Override
     public Object visitFunction(Expression.Function expression) {
-        return environment.getFunction((String) expression.getName().value());
+        return lookUpFunction(expression.getName(), expression);
+    }
+
+    private Object lookUpFunction(Token name, Expression expression) {
+        Integer distance = localFunctions.get(expression);
+        if (distance != null) {
+            return environment.getFunctionAt(distance, (String) name.value());
+        } else {
+            return globals.getFunction((String) name.value());
+        }
+    }
+
+    @Override
+    public Object visitExtends(Expression.Extends expression) {
+        return lookUpClass(expression.getName(), expression);
+    }
+
+    private Object lookUpClass(Token name, Expression expression) {
+        Integer distance = localClasses.get(expression);
+        if (distance != null) {
+            return environment.getClassAt(distance, (String) name.value());
+        } else {
+            return globals.getClass((String) name.value());
+        }
     }
 
     private void checkNumberOperand(Token operator, Object operand) {
@@ -350,8 +464,8 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
 
     @Override
     public Void visitFunctionStatement(Statement.FunctionStatement statement) {
-        PepoFunction function = new PepoFunction(statement);
-        environment.defineFunction(statement.getName().value().toString(), function);
+        PepoFunction function = new PepoFunction(statement, this.environment);
+        this.environment.defineFunction(statement.getName().value().toString(), function);
         return null;
     }
 
@@ -388,13 +502,57 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     }
 
     @Override
+    public Void visitClassStatement(Statement.ClassStatement statement) {
+        String className = (String) statement.getName().value();
+
+        PepoClass superclass = null;
+        @Nullable Expression.Extends superclassExpr = statement.getSuperclass();
+        if (superclassExpr != null) {
+            Object superclassName = evaluate(superclassExpr);
+            if (!(superclassName instanceof PepoClass superClass))
+                throw new RuntimeError(statement.getName(), "Superclass must be a class.");
+
+            superclass = superClass;
+        }
+
+        this.environment.defineClass(className, null);
+
+        if (superclass != null) {
+            this.environment = new Environment(this.environment);
+            this.environment.defineVariable("super", superclass);
+        }
+
+        Map<String, List<PepoFunction>> methods = new HashMap<>();
+        for (Statement.FunctionStatement method : statement.getMethods()) {
+            methods.computeIfAbsent(method.getName().value().toString(), k -> new ArrayList<>())
+                    .add(new PepoFunction(method, this.environment));
+        }
+
+        PepoClass clazz = new PepoClass(className, superclass, methods);
+        if (superclass != null)
+            this.environment = this.environment.getEnclosing();
+
+        this.environment.defineClass(className, clazz);
+        this.environment.defineVariable("this", clazz);
+        return null;
+    }
+
+    @Override
+    public Void visitConstructorStatement(Statement.ConstructorStatement statement) {
+        String className = (String) statement.getName().value();
+        this.environment.defineFunction(className, new PepoClass.PepoConstructor(statement, this.environment));
+        return null;
+    }
+
+    @Override
     public Void visitWhileStatement(Statement.WhileStatement statement) {
         while (isTruthy(evaluate(statement.getCondition()))) {
             try {
                 execute(statement.getBody());
             } catch (Break ignored) {
                 break;
-            } catch (Continue ignored) {}
+            } catch (Continue ignored) {
+            }
         }
 
         return null;
@@ -404,12 +562,28 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
         return this.globals;
     }
 
+    protected void resolve(Expression expression, int depth) {
+        if(expression instanceof Expression.Variable variable) {
+            this.localVariables.put(variable, depth);
+        } else if(expression instanceof Expression.Assign assign) {
+            this.localVariables.put(assign, depth);
+        } else if(expression instanceof Expression.Function function) {
+            this.localFunctions.put(function, depth);
+        } else if(expression instanceof Expression.Extends clazz) {
+            this.localClasses.put(clazz, depth);
+        }
+    }
+
     public static class RuntimeError extends RuntimeException {
         final Token token;
 
         RuntimeError(Token token, String message) {
             super(message);
             this.token = token;
+        }
+
+        RuntimeError(String message) {
+            this(null, message);
         }
     }
 

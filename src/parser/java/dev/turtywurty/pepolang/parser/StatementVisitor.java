@@ -5,6 +5,8 @@ import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.parser.Statement.AssignStatement;
 import dev.turtywurty.pepolang.parser.Statement.BlockStatement;
 import dev.turtywurty.pepolang.parser.Statement.BreakStatement;
+import dev.turtywurty.pepolang.parser.Statement.ClassStatement;
+import dev.turtywurty.pepolang.parser.Statement.ConstructorStatement;
 import dev.turtywurty.pepolang.parser.Statement.ContinueStatement;
 import dev.turtywurty.pepolang.parser.Statement.ExpressionStatement;
 import dev.turtywurty.pepolang.parser.Statement.FunctionStatement;
@@ -15,23 +17,27 @@ import dev.turtywurty.pepolang.parser.Statement.WhileStatement;
 
 @JavaGenerated
 public interface StatementVisitor<R> {
+    R visitBlockStatement(BlockStatement statement);
+
+    R visitFunctionStatement(FunctionStatement statement);
+
+    R visitVariableStatement(VariableStatement statement);
+
+    R visitClassStatement(ClassStatement statement);
+
+    R visitConstructorStatement(ConstructorStatement statement);
+
+    R visitExpressionStatement(ExpressionStatement statement);
+
+    R visitIfStatement(IfStatement statement);
+
     R visitAssignStatement(AssignStatement statement);
 
-    R visitBlockStatement(BlockStatement statement);
+    R visitWhileStatement(WhileStatement statement);
 
     R visitBreakStatement(BreakStatement statement);
 
     R visitContinueStatement(ContinueStatement statement);
 
-    R visitExpressionStatement(ExpressionStatement statement);
-
-    R visitFunctionStatement(FunctionStatement statement);
-
-    R visitIfStatement(IfStatement statement);
-
     R visitReturnStatement(ReturnStatement statement);
-
-    R visitVariableStatement(VariableStatement statement);
-
-    R visitWhileStatement(WhileStatement statement);
 }

@@ -5,10 +5,16 @@ import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.parser.Expression.Assign;
 import dev.turtywurty.pepolang.parser.Expression.Binary;
 import dev.turtywurty.pepolang.parser.Expression.Call;
+import dev.turtywurty.pepolang.parser.Expression.Extends;
 import dev.turtywurty.pepolang.parser.Expression.Function;
+import dev.turtywurty.pepolang.parser.Expression.Get;
 import dev.turtywurty.pepolang.parser.Expression.Grouping;
 import dev.turtywurty.pepolang.parser.Expression.Literal;
 import dev.turtywurty.pepolang.parser.Expression.Logical;
+import dev.turtywurty.pepolang.parser.Expression.New;
+import dev.turtywurty.pepolang.parser.Expression.Set;
+import dev.turtywurty.pepolang.parser.Expression.Super;
+import dev.turtywurty.pepolang.parser.Expression.This;
 import dev.turtywurty.pepolang.parser.Expression.Unary;
 import dev.turtywurty.pepolang.parser.Expression.Variable;
 
@@ -20,7 +26,15 @@ public interface ExpressionVisitor<R> {
 
     R visitCall(Call expression);
 
-    R visitFunction(Function expression);
+    R visitNew(New expression);
+
+    R visitGet(Get expression);
+
+    R visitSet(Set expression);
+
+    R visitThis(This expression);
+
+    R visitSuper(Super expression);
 
     R visitGrouping(Grouping expression);
 
@@ -31,4 +45,8 @@ public interface ExpressionVisitor<R> {
     R visitUnary(Unary expression);
 
     R visitVariable(Variable expression);
+
+    R visitFunction(Function expression);
+
+    R visitExtends(Extends expression);
 }

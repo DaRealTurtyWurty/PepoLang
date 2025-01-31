@@ -5,6 +5,7 @@ import dev.turtywurty.pepolang.CollectionUtility;
 import dev.turtywurty.pepolang.JavaGenerated;
 import dev.turtywurty.pepolang.StringUtility;
 import dev.turtywurty.pepolang.lexer.Token;
+import org.jetbrains.annotations.Nullable;
 
 import javax.lang.model.element.Modifier;
 import java.io.IOException;
@@ -23,79 +24,117 @@ public class AstGenerator {
         var expression = ClassName.get("dev.turtywurty.pepolang.parser", "Expression");
         var statement = ClassName.get("dev.turtywurty.pepolang.parser", "Statement");
 
-        TreeMap<String, TreeMap<String, TypeName>> expressionTypes = CollectionUtility.createTreeMap(
-                "Assign", CollectionUtility.createTreeMap(
-                        "name", TypeName.get(Token.class),
+        TypeName token = TypeName.get(Token.class);
+        LinkedHashMap<String, LinkedHashMap<String, TypeName>> expressionTypes = CollectionUtility.createLinkedHashMap(
+                "Assign", CollectionUtility.createLinkedHashMap(
+                        "name", token,
                         "value", expression
                 ),
-                "Binary", CollectionUtility.createTreeMap(
+                "Binary", CollectionUtility.createLinkedHashMap(
                         "left", expression,
-                        "operator", TypeName.get(Token.class),
+                        "operator", token,
                         "right", expression
                 ),
-                "Call", CollectionUtility.createTreeMap(
+                "Call", CollectionUtility.createLinkedHashMap(
                         "callee", expression,
-                        "paren", TypeName.get(Token.class),
+                        "paren", token,
                         "arguments", ParameterizedTypeName.get(ClassName.get(List.class), expression)
                 ),
-                "Grouping", CollectionUtility.createTreeMap(
+                "New", CollectionUtility.createLinkedHashMap(
+                        "keyword", token,
+                        "call", expression
+                ),
+                "Get", CollectionUtility.createLinkedHashMap(
+                        "object", expression,
+                        "name", token
+                ),
+                "Set", CollectionUtility.createLinkedHashMap(
+                        "object", expression,
+                        "name", token,
+                        "value", expression
+                ),
+                "This", CollectionUtility.createLinkedHashMap(
+                        "keyword", token
+                ),
+                "Super", CollectionUtility.createLinkedHashMap(
+                        "keyword", token,
+                        "method", token
+                ),
+                "Grouping", CollectionUtility.createLinkedHashMap(
                         "expression", expression
                 ),
-                "Literal", CollectionUtility.createTreeMap(
+                "Literal", CollectionUtility.createLinkedHashMap(
                         "value", TypeName.get(Object.class)
                 ),
-                "Logical", CollectionUtility.createTreeMap(
+                "Logical", CollectionUtility.createLinkedHashMap(
                         "left", expression,
-                        "operator", TypeName.get(Token.class),
+                        "operator", token,
                         "right", expression
                 ),
-                "Unary", CollectionUtility.createTreeMap(
-                        "operator", TypeName.get(Token.class),
+                "Unary", CollectionUtility.createLinkedHashMap(
+                        "operator", token,
                         "right", expression
                 ),
-                "Variable", CollectionUtility.createTreeMap(
-                        "name", TypeName.get(Token.class)
+                "Variable", CollectionUtility.createLinkedHashMap(
+                        "name", token
                 ),
-                "Function", CollectionUtility.createTreeMap(
-                        "name", TypeName.get(Token.class)
+                "Function", CollectionUtility.createLinkedHashMap(
+                        "name", token
+                ),
+                "Extends", CollectionUtility.createLinkedHashMap(
+                        "name", token
                 )
         );
 
-        TreeMap<String, TreeMap<String, TypeName>> statementTypes = CollectionUtility.createTreeMap(
-                "BlockStatement", CollectionUtility.createTreeMap(
+        LinkedHashMap<String, LinkedHashMap<String, TypeName>> statementTypes = CollectionUtility.createLinkedHashMap(
+                "BlockStatement", CollectionUtility.createLinkedHashMap(
                         "statements", ParameterizedTypeName.get(ClassName.get(List.class), statement)
                 ),
-                "FunctionStatement", CollectionUtility.createTreeMap(
-                        "name", TypeName.get(Token.class),
-                        "returnType", TypeName.get(Token.class),
-                        "parameters", ParameterizedTypeName.get(ClassName.get(Map.class), TypeName.get(Token.class), TypeName.get(Token.class)),
+                "FunctionStatement", CollectionUtility.createLinkedHashMap(
+                        "name", token,
+                        "returnType", token,
+                        "parameters", ParameterizedTypeName.get(ClassName.get(List.class), ClassName.get("dev.turtywurty.pepolang.parser", "Parameter")),
                         "body", ParameterizedTypeName.get(ClassName.get(List.class), statement)
                 ),
-                "ExpressionStatement", CollectionUtility.createTreeMap(
+                "VariableStatement", CollectionUtility.createLinkedHashMap(
+                        "type", token,
+                        "name", token,
+                        "initializer", expression
+                ),
+                "ClassStatement", CollectionUtility.createLinkedHashMap(
+                        "name", token,
+                        "superclass", expression.nestedClass("Extends").annotated(AnnotationSpec.builder(ClassName.get(Nullable.class)).build()),
+                        "constructors", ParameterizedTypeName.get(ClassName.get(List.class), statement.nestedClass("ConstructorStatement")),
+                        "methods", ParameterizedTypeName.get(ClassName.get(List.class), statement.nestedClass("FunctionStatement")),
+                        "fields", ParameterizedTypeName.get(ClassName.get(List.class), statement.nestedClass("VariableStatement")),
+                        "staticMethods", ParameterizedTypeName.get(ClassName.get(List.class), statement.nestedClass("FunctionStatement")),
+                        "staticFields", ParameterizedTypeName.get(ClassName.get(List.class), statement.nestedClass("VariableStatement"))
+                ),
+                "ConstructorStatement", CollectionUtility.createLinkedHashMap(
+                        "name", token,
+                        "parameters", ParameterizedTypeName.get(ClassName.get(List.class), ClassName.get("dev.turtywurty.pepolang.parser", "Parameter")),
+                        "body", ParameterizedTypeName.get(ClassName.get(List.class), statement)
+                ),
+                "ExpressionStatement", CollectionUtility.createLinkedHashMap(
                         "expression", expression
                 ),
-                "IfStatement", CollectionUtility.createTreeMap(
+                "IfStatement", CollectionUtility.createLinkedHashMap(
                         "condition", expression,
                         "thenBranch", statement,
                         "elseBranch", statement
                 ),
-                "VariableStatement", CollectionUtility.createTreeMap(
-                        "type", TypeName.get(Token.class),
-                        "name", TypeName.get(Token.class),
-                        "initializer", expression
-                ),
-                "AssignStatement", CollectionUtility.createTreeMap(
-                        "name", TypeName.get(Token.class),
+                "AssignStatement", CollectionUtility.createLinkedHashMap(
+                        "name", token,
                         "value", expression
                 ),
-                "WhileStatement", CollectionUtility.createTreeMap(
+                "WhileStatement", CollectionUtility.createLinkedHashMap(
                         "condition", expression,
                         "body", statement
                 ),
-                "BreakStatement", CollectionUtility.createTreeMap(),
-                "ContinueStatement", CollectionUtility.createTreeMap(),
-                "ReturnStatement", CollectionUtility.createTreeMap(
-                        "keyword", TypeName.get(Token.class),
+                "BreakStatement", CollectionUtility.createLinkedHashMap(),
+                "ContinueStatement", CollectionUtility.createLinkedHashMap(),
+                "ReturnStatement", CollectionUtility.createLinkedHashMap(
+                        "keyword", token,
                         "value", expression
                 )
         );
@@ -106,7 +145,7 @@ public class AstGenerator {
         defineVisitor(outputDir, "Statement", statementTypes);
     }
 
-    private static void defineVisitor(String outputDir, String baseName, TreeMap<String, TreeMap<String, TypeName>> types) throws IOException {
+    private static void defineVisitor(String outputDir, String baseName, LinkedHashMap<String, LinkedHashMap<String, TypeName>> types) throws IOException {
         TypeVariableName r = TypeVariableName.get("R");
 
         TypeSpec.Builder visitor = TypeSpec.interfaceBuilder(baseName + "Visitor")
@@ -114,7 +153,7 @@ public class AstGenerator {
                 .addTypeVariable(r)
                 .addAnnotation(JavaGenerated.class);
 
-        for (String type : types.sequencedKeySet()) {
+        for (String type : types.keySet()) {
             visitor.addMethod(MethodSpec.methodBuilder("visit" + type)
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                     .addParameter(ClassName.get("dev.turtywurty.pepolang.parser." + baseName, type), baseName.toLowerCase(Locale.ROOT))
@@ -132,11 +171,11 @@ public class AstGenerator {
         javaFile.writeTo(Paths.get(outputDir));
     }
 
-    private static void defineAst(String outputDir, String name, TreeMap<String, TreeMap<String, TypeName>> types) throws IOException {
+    private static void defineAst(String outputDir, String name, LinkedHashMap<String, LinkedHashMap<String, TypeName>> types) throws IOException {
         List<TypeSpec> classes = new ArrayList<>();
-        for (Map.Entry<String, TreeMap<String, TypeName>> entry : types.sequencedEntrySet()) {
+        for (Map.Entry<String, LinkedHashMap<String, TypeName>> entry : types.entrySet()) {
             String className = entry.getKey();
-            TreeMap<String, TypeName> fields = entry.getValue();
+            LinkedHashMap<String, TypeName> fields = entry.getValue();
             classes.add(defineType(className, name, fields));
         }
 
@@ -164,11 +203,11 @@ public class AstGenerator {
         javaFile.writeTo(Paths.get(outputDir));
     }
 
-    private static TypeSpec defineType(String className, String baseName, TreeMap<String, TypeName> fields) {
+    private static TypeSpec defineType(String className, String baseName, LinkedHashMap<String, TypeName> fields) {
         MethodSpec.Builder constructor = MethodSpec.constructorBuilder()
                 .addModifiers(Modifier.PUBLIC);
 
-        for (Map.Entry<String, TypeName> field : fields.sequencedEntrySet()) {
+        for (Map.Entry<String, TypeName> field : fields.entrySet()) {
             constructor.addParameter(field.getValue(), field.getKey());
             constructor.addStatement("this.$L = $L", field.getKey(), field.getKey());
         }
@@ -188,7 +227,7 @@ public class AstGenerator {
                 .addMethod(accept)
                 .superclass(ClassName.get("dev.turtywurty.pepolang.parser", baseName));
 
-        for (Map.Entry<String, TypeName> field : fields.sequencedEntrySet()) {
+        for (Map.Entry<String, TypeName> field : fields.entrySet()) {
             clazz.addField(field.getValue(), field.getKey(), Modifier.PRIVATE, Modifier.FINAL);
             clazz.addMethod(MethodSpec.methodBuilder("get" + StringUtility.capitalize(field.getKey()))
                     .addModifiers(Modifier.PUBLIC)

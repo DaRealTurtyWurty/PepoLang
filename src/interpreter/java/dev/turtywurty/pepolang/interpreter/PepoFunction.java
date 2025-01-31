@@ -1,16 +1,17 @@
 package dev.turtywurty.pepolang.interpreter;
 
-import dev.turtywurty.pepolang.lexer.Token;
+import dev.turtywurty.pepolang.parser.Parameter;
 import dev.turtywurty.pepolang.parser.Statement;
 
 import java.util.List;
-import java.util.Map;
 
 public class PepoFunction implements PepoCallable {
     private final Statement.FunctionStatement declaration;
+    private final Environment closure;
 
-    public PepoFunction(Statement.FunctionStatement declaration) {
+    public PepoFunction(Statement.FunctionStatement declaration, Environment closure) {
         this.declaration = declaration;
+        this.closure = closure;
     }
 
     @Override
@@ -20,10 +21,10 @@ public class PepoFunction implements PepoCallable {
 
     @Override
     public Object call(Interpreter interpreter, List<Object> arguments) {
-        Environment environment = new Environment(interpreter.getGlobals());
-        int index = 0;
-        for (Map.Entry<Token, Token> entry : this.declaration.getParameters().entrySet()) {
-            environment.defineVariable(entry.getKey().value().toString(), arguments.get(index++));
+        Environment environment = new Environment(this.closure);
+        List<Parameter> parameters = this.declaration.getParameters();
+        for (int index = 0; index < parameters.size(); index++) {
+            environment.defineVariable((String) parameters.get(index).name().value(), arguments.get(index));
         }
 
         try {
@@ -38,5 +39,11 @@ public class PepoFunction implements PepoCallable {
     @Override
     public String toString() {
         return "<fn " + this.declaration.getName().value() + ">";
+    }
+
+    public PepoFunction bind(PepoInstance instance) {
+        Environment environment = new Environment(this.closure);
+        environment.defineVariable("this", instance);
+        return new PepoFunction(this.declaration, environment);
     }
 }

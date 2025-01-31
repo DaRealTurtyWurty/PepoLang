@@ -1,6 +1,7 @@
 package dev.turtywurty.pepolang;
 
 import dev.turtywurty.pepolang.interpreter.Interpreter;
+import dev.turtywurty.pepolang.interpreter.Resolver;
 import dev.turtywurty.pepolang.lexer.Lexer;
 import dev.turtywurty.pepolang.lexer.Token;
 import dev.turtywurty.pepolang.parser.AstPrinter;
@@ -11,21 +12,47 @@ import java.util.List;
 
 public class PepoLang {
     public static void main(String[] args) {
-        var lexer = new Lexer("""
-                int a = 100;
-                while(a > 0) {
-                    for(int i = 0; i < 10; i = i + 1) {
-                        print(a + ": " + i);
+        String fullSrc = """
+                string determineOutput(int num) {
+                    if(num % 3 == 0 && num % 5 == 0) {
+                        return "FizzBuzz";
+                    } else if(num % 3 == 0) {
+                        return "Fizz";
+                    } else if(num % 5 == 0) {
+                        return "Buzz";
                     }
-                    a = a - 1;
+                
+                    return num;
                 }
                 
+                void main() {
+                    int a = 50;
+                    while(a > 0) {
+                        if(a < 30 && a > 10) {
+                            a = a - 1;
+                            continue;
+                        }
+                
+                        for(int i = 0; i < 10; i = i + 1) {
+                            string output = determineOutput(i);
+                            if(output != i) {
+                                print("i: " + i + ", output: " + output);
+                            }
+                        }
+                
+                        a = a - 1;
+                    }
+                
+                    printTime();
+                }
+               
                 void printTime() {
                     print(time());
                 }
                 
-                printTime();
-                """);
+                main();
+                """;
+        var lexer = new Lexer(fullSrc);
         List<Token> tokens = lexer.lex();
 
         var parser = new Parser(tokens);
@@ -37,6 +64,10 @@ public class PepoLang {
         System.out.println(AstPrinter.print(statements));
 
         var interpreter = new Interpreter();
+
+        var resolver = new Resolver(interpreter);
+        resolver.resolve(statements);
+
         interpreter.interpret(statements);
     }
 }

@@ -77,8 +77,38 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
     }
 
     @Override
+    public String visitNew(Expression.New expression) {
+        return "new " + expression.getCall().accept(this);
+    }
+
+    @Override
+    public String visitGet(Expression.Get expression) {
+        return expression.getObject().accept(this) + "." + expression.getName().value();
+    }
+
+    @Override
+    public String visitSet(Expression.Set expression) {
+        return expression.getObject().accept(this) + "." + expression.getName().value() + " = " + expression.getValue().accept(this);
+    }
+
+    @Override
+    public String visitThis(Expression.This expression) {
+        return "this";
+    }
+
+    @Override
+    public String visitSuper(Expression.Super expression) {
+        return "super." + expression.getMethod().value();
+    }
+
+    @Override
     public String visitFunction(Expression.Function expression) {
         return expression.getName().value().toString();
+    }
+
+    @Override
+    public String visitExtends(Expression.Extends expression) {
+        return "extends " + expression.getName().value().toString();
     }
 
     private String parenthesize(String name, Expression... expressions) {
@@ -130,6 +160,11 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
     }
 
     @Override
+    public Void visitReturnStatement(Statement.ReturnStatement statement) {
+        return null;
+    }
+
+    @Override
     public Void visitExpressionStatement(Statement.ExpressionStatement statement) {
         return null;
     }
@@ -146,6 +181,16 @@ public class AstPrinter implements ExpressionVisitor<String>, StatementVisitor<V
 
     @Override
     public Void visitVariableStatement(Statement.VariableStatement statement) {
+        return null;
+    }
+
+    @Override
+    public Void visitClassStatement(Statement.ClassStatement statement) {
+        return null;
+    }
+
+    @Override
+    public Void visitConstructorStatement(Statement.ConstructorStatement statement) {
         return null;
     }
 
