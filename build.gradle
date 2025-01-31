@@ -11,6 +11,7 @@ idea {
         sourceDirs += file('src/lexer/java')
         sourceDirs += file('src/parser/java')
         sourceDirs += file('src/interpreter/java')
+        sourceDirs += file('src/codeGeneration/java')
     }
 }
 
@@ -33,6 +34,7 @@ sourceSets {
     parser
     interpreter
     tooling
+    codeGeneration
 }
 
 configurations {
@@ -45,9 +47,11 @@ dependencies {
     implementation sourceSets.lexer.output
     implementation sourceSets.parser.output
     implementation sourceSets.interpreter.output
+    implementation sourceSets.codeGeneration.output
 
     implementationAll 'org.jetbrains:annotations:24.1.0'
     implementationAll 'com.palantir.javapoet:javapoet:0.5.0'
+    implementationAll 'org.bytedeco:llvm-platform:19.1.3-1.5.11'
 
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -83,9 +87,13 @@ sourceSets {
         compileClasspath += sourceSets.utility.output + sourceSets.lexer.output
         runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output
     }
+    codeGeneration {
+        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output
+    }
     main {
-        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output
-        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output
+        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output + sourceSets.codeGeneration.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output + sourceSets.codeGeneration.output
     }
 }
 
@@ -114,12 +122,18 @@ tasks.register('interpreterJar', Jar) {
     archiveClassifier.set('interpreter')
 }
 
+tasks.register('codeGenerationJar', Jar) {
+    from sourceSets.codeGeneration.output
+    archiveClassifier.set('codeGeneration')
+}
+
 tasks.register('allJars', Jar) {
     from sourceSets.utility.output
     from sourceSets.tooling.output
     from sourceSets.lexer.output
     from sourceSets.parser.output
     from sourceSets.interpreter.output
+    from sourceSets.codeGeneration.output
     from configurations.implementationAll
     archiveClassifier.set('all')
 }
