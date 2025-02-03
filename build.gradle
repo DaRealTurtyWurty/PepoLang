@@ -32,9 +32,10 @@ sourceSets {
     utility
     lexer
     parser
+    semanticAnalysis
+    codeGeneration
     interpreter
     tooling
-    codeGeneration
 }
 
 configurations {
@@ -46,6 +47,7 @@ dependencies {
     implementation sourceSets.tooling.output
     implementation sourceSets.lexer.output
     implementation sourceSets.parser.output
+    implementation sourceSets.semanticAnalysis.output
     implementation sourceSets.interpreter.output
     implementation sourceSets.codeGeneration.output
 
@@ -79,32 +81,31 @@ sourceSets {
         compileClasspath += sourceSets.utility.output + sourceSets.lexer.output
         runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output
     }
-    interpreter {
+    semanticAnalysis {
         compileClasspath += sourceSets.utility.output + sourceSets.lexer.output + sourceSets.parser.output
         runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output + sourceSets.parser.output
+    }
+    interpreter {
+        compileClasspath += sourceSets.utility.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.semanticAnalysis.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.semanticAnalysis.output
+    }
+    codeGeneration {
+        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.semanticAnalysis.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.semanticAnalysis.output
     }
     tooling {
         compileClasspath += sourceSets.utility.output + sourceSets.lexer.output
         runtimeClasspath += sourceSets.utility.output + sourceSets.lexer.output
     }
-    codeGeneration {
-        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output
-        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output
-    }
     main {
-        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output + sourceSets.codeGeneration.output
-        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output + sourceSets.codeGeneration.output
+        compileClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output + sourceSets.semanticAnalysis.output + sourceSets.codeGeneration.output
+        runtimeClasspath += sourceSets.utility.output + sourceSets.tooling.output + sourceSets.lexer.output + sourceSets.parser.output + sourceSets.interpreter.output + sourceSets.semanticAnalysis.output + sourceSets.codeGeneration.output
     }
 }
 
 tasks.register('utilityJar', Jar) {
     from sourceSets.utility.output
     archiveClassifier.set('utility')
-}
-
-tasks.register('toolingJar', Jar) {
-    from sourceSets.tooling.output
-    archiveClassifier.set('tooling')
 }
 
 tasks.register('lexerJar', Jar) {
@@ -117,6 +118,11 @@ tasks.register('parserJar', Jar) {
     archiveClassifier.set('parser')
 }
 
+tasks.register('semanticAnalysisJar', Jar) {
+    from sourceSets.semanticAnalysis.output
+    archiveClassifier.set('semanticAnalysis')
+}
+
 tasks.register('interpreterJar', Jar) {
     from sourceSets.interpreter.output
     archiveClassifier.set('interpreter')
@@ -127,13 +133,19 @@ tasks.register('codeGenerationJar', Jar) {
     archiveClassifier.set('codeGeneration')
 }
 
+tasks.register('toolingJar', Jar) {
+    from sourceSets.tooling.output
+    archiveClassifier.set('tooling')
+}
+
 tasks.register('allJars', Jar) {
     from sourceSets.utility.output
-    from sourceSets.tooling.output
     from sourceSets.lexer.output
     from sourceSets.parser.output
+    from sourceSets.semanticAnalysis.output
     from sourceSets.interpreter.output
     from sourceSets.codeGeneration.output
+    from sourceSets.tooling.output
     from configurations.implementationAll
     archiveClassifier.set('all')
 }
