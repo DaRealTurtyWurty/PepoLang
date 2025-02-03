@@ -2,12 +2,10 @@ package dev.turtywurty.pepolang.codeGeneration;
 
 import org.bytedeco.llvm.LLVM.LLVMValueRef;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Stack;
+import java.util.*;
 
 public class SymbolTable {
-    private final Stack<Map<String, Symbol>> scopes = new Stack<>();
+    private final Stack<Map<String, List<Symbol>>> scopes = new Stack<>();
 
     public SymbolTable() {
         enterScope();
@@ -28,28 +26,42 @@ public class SymbolTable {
         if (this.scopes.isEmpty())
             throw new IllegalStateException("Cannot insert symbol when there are no scopes to insert into!");
 
-        Map<String, Symbol> currentScope = this.scopes.peek();
+        Map<String, List<Symbol>> currentScope = this.scopes.peek();
         if (currentScope.containsKey(name))
             throw new IllegalStateException("Symbol with name '" + name + "' already exists in the current scope!");
 
-        currentScope.put(name, symbol);
+        currentScope.computeIfAbsent(name, k -> new ArrayList<>()).add(symbol);
     }
 
-    public Symbol lookup(String name) {
+    public Symbol lookup(String name, SymbolCategory category) {
         for (int i = this.scopes.size() - 1; i >= 0; i--) {
-            Map<String, Symbol> currentScope = this.scopes.get(i);
-            if (currentScope.containsKey(name))
-                return currentScope.get(name);
+            Map<String, List<Symbol>> currentScope = this.scopes.get(i);
+            if (currentScope.containsKey(name)) {
+                List<Symbol> symbols = currentScope.get(name);
+                for (Symbol symbol : symbols) {
+                    if (category.contains(symbol.type()))
+                        return symbol;
+                }
+            }
         }
 
         return null;
     }
 
-    public Symbol lookupInCurrentScope(String name) {
+    public Symbol lookupInCurrentScope(String name, SymbolCategory category) {
         if (this.scopes.isEmpty())
             throw new IllegalStateException("Cannot lookup symbol in current scope when there are no scopes to lookup in!");
 
-        return this.scopes.peek().get(name);
+        Map<String, List<Symbol>> currentScope = this.scopes.peek();
+        if (currentScope.containsKey(name)) {
+            List<Symbol> symbols = currentScope.get(name);
+            for (Symbol symbol : symbols) {
+                if (category.contains(symbol.type()))
+                    return symbol;
+            }
+        }
+
+        return null;
     }
 
     public boolean isInCurrentScope(String name) {
@@ -63,9 +75,28 @@ public class SymbolTable {
         System.out.println("Symbol Table:");
         for (int i = 0; i < scopes.size(); i++) {
             System.out.println("Scope " + i + ":");
-            for (Map.Entry<String, Symbol> entry : scopes.get(i).entrySet()) {
-                System.out.println("    " + entry.getKey() + " -> " + entry.getValue());
+            for (Map.Entry<String, List<Symbol>> entry : scopes.get(i).entrySet()) {
+                System.out.println(entry.getKey() + ":");
+                for (Symbol symbol : entry.getValue()) {
+                    System.out.println("\t" + symbol);
+                }
             }
+        }
+    }
+
+    public enum SymbolCategory {
+        VARIABLE(SymbolType.VARIABLE, SymbolType.FIELD, SymbolType.PARAMETER, SymbolType.LOCAL),
+        FUNCTION(SymbolType.FUNCTION, SymbolType.METHOD, SymbolType.CONSTRUCTOR),
+        CLASS(SymbolType.CLASS);
+
+        private final List<SymbolType> types = new ArrayList<>();
+
+        SymbolCategory(SymbolType... types) {
+            this.types.addAll(Arrays.asList(types));
+        }
+
+        public boolean contains(SymbolType type) {
+            return this.types.contains(type);
         }
     }
 
@@ -88,6 +119,6 @@ public class SymbolTable {
         CONSTRUCTOR,
         FIELD,
         PARAMETER,
-        LOCAL
+        LOCAL;
     }
 }

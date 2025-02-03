@@ -1,5 +1,6 @@
 package dev.turtywurty.pepolang;
 
+import dev.turtywurty.pepolang.codeGeneration.LLVMCodeGenerator;
 import dev.turtywurty.pepolang.interpreter.Interpreter;
 import dev.turtywurty.pepolang.interpreter.Resolver;
 import dev.turtywurty.pepolang.lexer.Lexer;
@@ -8,6 +9,7 @@ import dev.turtywurty.pepolang.parser.AstPrinter;
 import dev.turtywurty.pepolang.parser.Parser;
 import dev.turtywurty.pepolang.parser.Statement;
 
+import java.nio.file.Path;
 import java.util.List;
 
 public class PepoLang {
@@ -63,11 +65,13 @@ public class PepoLang {
 
         System.out.println(AstPrinter.print(statements));
 
-        var interpreter = new Interpreter();
+//        var interpreter = new Interpreter();
+//
+//        var resolver = new Resolver(interpreter);
+//        resolver.resolve(statements);
+//
+//        interpreter.interpret(statements);
 
-        var resolver = new Resolver(interpreter);
-        resolver.resolve(statements);
-
-        interpreter.interpret(statements);
+        LLVMCodeGenerator.generate(statements, Path.of("output.ll"));
     }
 }

@@ -3,6 +3,7 @@ package dev.turtywurty.pepolang.codeGeneration;
 import dev.turtywurty.pepolang.lexer.Token;
 import dev.turtywurty.pepolang.lexer.TokenType;
 import dev.turtywurty.pepolang.parser.*;
+import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.PointerPointer;
 import org.bytedeco.llvm.LLVM.*;
 import org.bytedeco.llvm.global.LLVM;
@@ -21,10 +22,18 @@ public class LLVMCodeGenerator {
         LLVMModuleRef module = LLVM.LLVMModuleCreateWithName("pepolang");
         LLVMBuilderRef builder = LLVM.LLVMCreateBuilderInContext(context);
 
+        PointerPointer<LLVMTypeRef> argTypes = new PointerPointer<>();
+        LLVMTypeRef mainType = LLVM.LLVMFunctionType(LLVM.LLVMInt32TypeInContext(context), argTypes, 0, 0);
+        LLVMValueRef mainFunction = LLVM.LLVMAddFunction(module, "main", mainType);
+        LLVMBasicBlockRef entryBlock = LLVM.LLVMAppendBasicBlockInContext(context, mainFunction, "entry");
+        LLVM.LLVMPositionBuilderAtEnd(builder, entryBlock);
+
         var visitor = new LLVMCodeGeneratorVisitor(context, module, builder);
         for (Statement statement : statements) {
             statement.accept(visitor);
         }
+
+        LLVM.LLVMBuildRet(builder, LLVM.LLVMConstInt(LLVM.LLVMInt32TypeInContext(context), 0, 0)); // Return 0
 
         ByteBuffer error = ByteBuffer.allocateDirect(1024);
         LLVM.LLVMPrintModuleToFile(module, outputPath.toString(), error);
@@ -48,11 +57,49 @@ public class LLVMCodeGenerator {
         }
 
         @Override
+        public LLVMValueRef visitVariableStatement(Statement.VariableStatement statement) {
+            Token name = statement.getName();
+            String variableName = (String) name.value();
+            Token type = statement.getType();
+            @Nullable Expression initializer = statement.getInitializer();
+
+            LLVMTypeRef llvmType = mapType(type);
+            LLVMValueRef allocatedVariable  = LLVM.LLVMBuildAlloca(this.builder, llvmType, variableName);
+
+            if(initializer != null) {
+                LLVMValueRef llvmInitializer = initializer.accept(this);
+                LLVM.LLVMBuildStore(this.builder, llvmInitializer, allocatedVariable);
+            }
+
+            this.symbolTable.insert(variableName, new SymbolTable.Symbol(variableName, SymbolTable.SymbolType.VARIABLE, allocatedVariable));
+            return allocatedVariable;
+        }
+
+        private LLVMTypeRef mapType(Token type) {
+            if (type.type() != TokenType.IDENTIFIER) {
+                return switch (type.type()) {
+                    case KEYWORD_INT -> LLVM.LLVMInt32TypeInContext(this.context);
+                    case KEYWORD_STRING -> LLVM.LLVMPointerType(LLVM.LLVMInt8TypeInContext(this.context), 0);
+                    case KEYWORD_BOOL -> LLVM.LLVMInt1TypeInContext(this.context);
+                    case KEYWORD_DOUBLE -> LLVM.LLVMFloatTypeInContext(this.context);
+                    case KEYWORD_FLOAT -> LLVM.LLVMDoubleTypeInContext(this.context);
+                    case KEYWORD_LONG -> LLVM.LLVMInt64TypeInContext(this.context);
+                    case KEYWORD_BYTE, KEYWORD_CHAR -> LLVM.LLVMInt8TypeInContext(this.context);
+                    case KEYWORD_SHORT -> LLVM.LLVMInt16TypeInContext(this.context);
+                    case KEYWORD_VOID -> LLVM.LLVMVoidTypeInContext(this.context);
+                    default -> throw new UnsupportedOperationException("Unknown type: " + type.type());
+                };
+            } else {
+               throw new UnsupportedOperationException("User defined types are not supported yet!");
+            }
+        }
+
+        @Override
         public LLVMValueRef visitAssign(Expression.Assign expression) {
             Token name = expression.getName();
             Expression value = expression.getValue();
 
-            SymbolTable.Symbol symbol = symbolTable.lookup((String) name.value());
+            SymbolTable.Symbol symbol = symbolTable.lookup((String) name.value(), SymbolTable.SymbolCategory.VARIABLE);
             if(symbol == null)
                 throw new RuntimeException("Unknown variable: " + name.value());
 
@@ -88,13 +135,24 @@ public class LLVMCodeGenerator {
             Expression callee = expression.getCallee();
             List<Expression> arguments = expression.getArguments();
 
-            LLVMValueRef llvmCallee = callee.accept(this);
-            if(llvmCallee == null)
-                throw new RuntimeException("Unknown function: " + callee);
+            String name = (String) ((Expression.Function) callee).getName().value();
+            List<LLVMTypeRef> parameterTypes = new ArrayList<>();
+            for (Expression argument : arguments) {
+                LLVMValueRef llvmArgument = argument.accept(this);
+                LLVMTypeRef llvmArgumentType = LLVM.LLVMTypeOf(llvmArgument);
+                parameterTypes.add(llvmArgumentType);
+            }
 
+            name = getFunctionNameLLVM(name, parameterTypes);
+
+            SymbolTable.Symbol symbol = symbolTable.lookup(name, SymbolTable.SymbolCategory.FUNCTION);
+            if(symbol == null)
+                throw new RuntimeException("Unknown function: " + name);
+
+            LLVMValueRef llvmCallee = symbol.llvmValue();
             LLVMTypeRef llvmFunctionType = LLVM.LLVMTypeOf(llvmCallee);
             if(LLVM.LLVMGetTypeKind(llvmFunctionType) != LLVM.LLVMFunctionTypeKind)
-                throw new RuntimeException("Callee is not a function type: " + callee);
+                throw new RuntimeException("Callee is not a function type: " + name);
 
             LLVMValueRef[] llvmArguments = arguments.stream()
                     .map(arg -> arg.accept(this))
@@ -172,7 +230,7 @@ public class LLVMCodeGenerator {
 
         @Override
         public LLVMValueRef visitThis(Expression.This expression) {
-            SymbolTable.Symbol symbol = symbolTable.lookup("this");
+            SymbolTable.Symbol symbol = symbolTable.lookup("this", SymbolTable.SymbolCategory.VARIABLE);
             if(symbol == null)
                 throw new RuntimeException("Unknown 'this' reference!");
 
@@ -181,7 +239,7 @@ public class LLVMCodeGenerator {
 
         @Override
         public LLVMValueRef visitSuper(Expression.Super expression) {
-            SymbolTable.Symbol symbol = symbolTable.lookup("super");
+            SymbolTable.Symbol symbol = symbolTable.lookup("super", SymbolTable.SymbolCategory.VARIABLE);
             if(symbol == null)
                 throw new RuntimeException("Unknown 'super' reference!");
 
@@ -237,7 +295,7 @@ public class LLVMCodeGenerator {
 
         @Override
         public LLVMValueRef visitVariable(Expression.Variable expression) {
-            SymbolTable.Symbol symbol = symbolTable.lookup((String) expression.getName().value());
+            SymbolTable.Symbol symbol = symbolTable.lookup((String) expression.getName().value(), SymbolTable.SymbolCategory.VARIABLE);
             if (symbol == null) {
                 throw new RuntimeException("Unknown variable: " + expression.getName().value());
             }
@@ -250,7 +308,7 @@ public class LLVMCodeGenerator {
 
         @Override
         public LLVMValueRef visitFunction(Expression.Function expression) {
-            SymbolTable.Symbol functionSymbol = symbolTable.lookup((String) expression.getName().value());
+            SymbolTable.Symbol functionSymbol = symbolTable.lookup((String) expression.getName().value(), SymbolTable.SymbolCategory.FUNCTION);
 
             if (functionSymbol == null)
                 throw new RuntimeException("Unknown function: " + expression.getName().value());
@@ -284,7 +342,10 @@ public class LLVMCodeGenerator {
                     .toArray(LLVMTypeRef[]::new);
 
             LLVMTypeRef llvmFunctionType = LLVM.LLVMFunctionType(llvmReturnType, new PointerPointer<>(llvmParameterTypes), llvmParameterTypes.length, 0); // TODO: Add support for variadic functions
-            LLVMValueRef llvmFunction = LLVM.LLVMAddFunction(module, (String) name.value(), llvmFunctionType);
+
+            String functionName = getFunctionNameLLVM((String) name.value(), List.of(llvmParameterTypes));
+            LLVMValueRef llvmFunction = LLVM.LLVMAddFunction(module, functionName, llvmFunctionType);
+            this.symbolTable.insert(functionName, new SymbolTable.Symbol(functionName, SymbolTable.SymbolType.FUNCTION, llvmFunction));
 
             this.symbolTable.enterScope();
 
@@ -311,26 +372,6 @@ public class LLVMCodeGenerator {
             this.symbolTable.exitScope();
 
             return llvmFunction;
-        }
-
-        @Override
-        public LLVMValueRef visitVariableStatement(Statement.VariableStatement statement) {
-            Token name = statement.getName();
-            String variableName = (String) name.value();
-            Token type = statement.getType();
-            @Nullable Expression initializer = statement.getInitializer();
-
-            LLVMTypeRef llvmType = mapType(type);
-            LLVMValueRef allocatedVariable = LLVM.LLVMBuildAlloca(this.builder, llvmType, variableName);
-
-            if(initializer != null) {
-                LLVMValueRef llvmInitializer = initializer.accept(this);
-                LLVM.LLVMBuildStore(this.builder, llvmInitializer, allocatedVariable);
-            }
-
-            this.symbolTable.insert(variableName, new SymbolTable.Symbol(variableName, SymbolTable.SymbolType.VARIABLE, allocatedVariable));
-
-            return allocatedVariable;
         }
 
         @Override
@@ -380,7 +421,7 @@ public class LLVMCodeGenerator {
         @Override
         public LLVMValueRef visitExtends(Expression.Extends expression) {
             Token name = expression.getName();
-            SymbolTable.Symbol symbol = symbolTable.lookup((String) name.value());
+            SymbolTable.Symbol symbol = symbolTable.lookup((String) name.value(), SymbolTable.SymbolCategory.CLASS);
             if(symbol == null || symbol.type() != SymbolTable.SymbolType.CLASS)
                 throw new RuntimeException("Unknown class: " + name.value());
 
@@ -479,7 +520,7 @@ public class LLVMCodeGenerator {
             Token name = statement.getName();
             Expression value = statement.getValue();
 
-            SymbolTable.Symbol symbol = symbolTable.lookup((String) name.value());
+            SymbolTable.Symbol symbol = symbolTable.lookup((String) name.value(), SymbolTable.SymbolCategory.VARIABLE);
             if(symbol == null)
                 throw new RuntimeException("Unknown variable: " + name.value());
 
@@ -561,24 +602,53 @@ public class LLVMCodeGenerator {
 
             return null;
         }
-        
-        private LLVMTypeRef mapType(Token type) {
-            if(type.type() != TokenType.IDENTIFIER) {
-                return switch (type.type()) {
-                    case KEYWORD_INT -> LLVM.LLVMInt32TypeInContext(this.context);
-                    case KEYWORD_STRING -> LLVM.LLVMPointerType(LLVM.LLVMInt8TypeInContext(this.context), 0);
-                    case KEYWORD_BOOL -> LLVM.LLVMInt1TypeInContext(this.context);
-                    case KEYWORD_DOUBLE -> LLVM.LLVMFloatTypeInContext(this.context);
-                    case KEYWORD_FLOAT -> LLVM.LLVMDoubleTypeInContext(this.context);
-                    case KEYWORD_LONG -> LLVM.LLVMInt64TypeInContext(this.context);
-                    case KEYWORD_BYTE, KEYWORD_CHAR -> LLVM.LLVMInt8TypeInContext(this.context);
-                    case KEYWORD_SHORT -> LLVM.LLVMInt16TypeInContext(this.context);
-                    case KEYWORD_VOID -> LLVM.LLVMVoidTypeInContext(this.context);
-                    default -> throw new UnsupportedOperationException("Unknown type: " + type.type());
-                };
-            } else {
-                return LLVM.LLVMPointerType(LLVM.LLVMStructCreateNamed(this.context, (String) type.value()), 0);
+
+        private String getFunctionNameLLVM(String name, List<LLVMTypeRef> parameterTypes) {
+            StringBuilder output = new StringBuilder(name);
+            output.append(parameterTypes.isEmpty() ? "" : "_");
+
+            for (LLVMTypeRef parameterType : parameterTypes) {
+                if (parameterType == null) {
+                    throw new RuntimeException("Null LLVMTypeRef encountered.");
+                }
+
+                int typeKind = LLVM.LLVMGetTypeKind(parameterType);
+                if(typeKind == LLVM.LLVMPointerTypeKind) {
+                    LLVMTypeRef elementType = LLVM.LLVMGetElementType(parameterType);
+                    BytePointer moduleStr = LLVM.LLVMPrintModuleToString(this.module);
+                    try {
+                        String moduleString = moduleStr.getString();
+                        System.out.println(moduleString);
+                    } finally {
+                        LLVM.LLVMDisposeMessage(moduleStr);
+                    }
+                    typeKind = LLVM.LLVMGetTypeKind(elementType);
+                }
+
+                output.append(switch (typeKind) {
+                    case LLVM.LLVMVoidTypeKind-> "void";
+                    case LLVM.LLVMIntegerTypeKind -> {
+                        int bitWidth = LLVM.LLVMGetIntTypeWidth(parameterType);
+                        yield "i" + bitWidth;
+                    }
+                    case LLVM.LLVMHalfTypeKind-> "f16";
+                    case LLVM.LLVMFloatTypeKind-> "f32";
+                    case LLVM.LLVMDoubleTypeKind-> "f64";
+                    case LLVM.LLVMX86_FP80TypeKind-> "x86_fp80";
+                    case LLVM.LLVMFP128TypeKind-> "fp128";
+                    case LLVM.LLVMLabelTypeKind-> "label";
+                    case LLVM.LLVMFunctionTypeKind-> "func";
+                    case LLVM.LLVMStructTypeKind-> "struct";
+                    case LLVM.LLVMArrayTypeKind-> "array";
+                    case LLVM.LLVMVectorTypeKind-> "vector";
+                    case LLVM.LLVMMetadataTypeKind-> "metadata";
+                    case LLVM.LLVMTokenTypeKind-> "token";
+                    default -> "unknown(" + typeKind + ")";
+                }).append("_");
             }
+
+            String outputStr = output.toString();
+            return outputStr.endsWith("_") ? outputStr.substring(0, outputStr.length() - 1) : outputStr;
         }
     }
 
