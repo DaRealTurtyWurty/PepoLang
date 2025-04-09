@@ -8,6 +8,8 @@ import dev.turtywurty.pepolang.lexer.Token;
 import dev.turtywurty.pepolang.parser.AstPrinter;
 import dev.turtywurty.pepolang.parser.Parser;
 import dev.turtywurty.pepolang.parser.Statement;
+import dev.turtywurty.pepolang.semanticAnalysis.SemanticAnalyzer;
+import dev.turtywurty.pepolang.semanticAnalysis.SemanticException;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -25,6 +27,10 @@ public class PepoLang {
                     }
                 
                     return num;
+                }
+                
+                void printTime() {
+                    print(time() + "");
                 }
                 
                 void main() {
@@ -47,10 +53,6 @@ public class PepoLang {
                 
                     printTime();
                 }
-               
-                void printTime() {
-                    print(time());
-                }
                 
                 main();
                 """;
@@ -64,6 +66,17 @@ public class PepoLang {
             return;
 
         System.out.println(AstPrinter.print(statements));
+
+        var semanticAnalyzer = new SemanticAnalyzer(statements);
+        semanticAnalyzer.analyze();
+
+        if (semanticAnalyzer.hadError()) {
+            for (SemanticException error : semanticAnalyzer.getErrors()) {
+                System.err.println("Error: " + error.getMessage() + " at C" + error.getToken().pos());
+            }
+
+            return;
+        }
 
 //        var interpreter = new Interpreter();
 //

@@ -8,7 +8,7 @@ import dev.turtywurty.pepolang.semanticAnalysis.SymbolType;
 import java.util.List;
 import java.util.Objects;
 
-public class MethodSymbol extends Symbol implements ReturnTypeSymbol {
+public class MethodSymbol extends Symbol implements HasReturnType {
     private final Either<PrimitiveType, String> returnType;
     private final List<VariableSymbol> parameters;
 

@@ -12,7 +12,8 @@ public enum PrimitiveType {
     LONG,
     CHAR,
     BYTE,
-    SHORT;
+    SHORT,
+    ANY;
 
     public static PrimitiveType fromTokenType(TokenType type) {
         return switch (type) {

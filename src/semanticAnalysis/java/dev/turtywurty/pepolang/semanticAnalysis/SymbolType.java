@@ -4,5 +4,6 @@ public enum SymbolType {
     CLASS,
     METHOD,
     VARIABLE,
-    FIELD
+    FIELD,
+    VALUE
 }

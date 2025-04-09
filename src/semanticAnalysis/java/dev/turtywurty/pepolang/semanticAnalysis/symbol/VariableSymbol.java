@@ -5,7 +5,7 @@ import dev.turtywurty.pepolang.semanticAnalysis.Either;
 import dev.turtywurty.pepolang.semanticAnalysis.PrimitiveType;
 import dev.turtywurty.pepolang.semanticAnalysis.SymbolType;
 
-public class VariableSymbol extends Symbol implements ReturnTypeSymbol {
+public class VariableSymbol extends Symbol implements HasReturnType {
     private final Either<PrimitiveType, String> type;
 
     public VariableSymbol(String name, PrimitiveType type) {

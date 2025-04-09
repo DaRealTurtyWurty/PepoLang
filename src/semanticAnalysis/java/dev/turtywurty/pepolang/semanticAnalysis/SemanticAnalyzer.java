@@ -18,8 +18,16 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
     public SemanticAnalyzer(List<Statement> statements) {
         this.statements = statements;
         this.symbolTable = new SymbolTable();
+        this.symbolTable.addSymbol(new MethodSymbol("print", PrimitiveType.VOID, List.of(new VariableSymbol("value", PrimitiveType.STRING))));
+        this.symbolTable.addSymbol(new MethodSymbol("time", PrimitiveType.LONG, List.of()));
 
         for (Statement statement : statements) {
+            statement.accept(this);
+        }
+    }
+
+    public void analyze() {
+        for (Statement statement : this.statements) {
             statement.accept(this);
         }
     }
@@ -188,6 +196,281 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         return handleConstructor(this, statement);
     }
 
+    @Override
+    public Symbol visitAssign(Expression.Assign expression) {
+        Token name = expression.getName();
+        Expression value = expression.getValue();
+
+        String nameValue = (String) name.value();
+        if (!this.symbolTable.containsSymbol(nameValue, SymbolType.VARIABLE)) {
+            throw error(name, "Variable with name '" + name.value() + "' does not exist in this scope!");
+        }
+
+        value.accept(this);
+        return this.symbolTable.getVariable(nameValue);
+    }
+
+    @Override
+    public Symbol visitBinary(Expression.Binary expression) {
+        Token operator = expression.getOperator();
+        Expression left = expression.getLeft();
+        Expression right = expression.getRight();
+
+        Symbol leftSymbol = left.accept(this);
+        Symbol rightSymbol = right.accept(this);
+
+        if (leftSymbol == null || rightSymbol == null) {
+            throw new SemanticException(operator, "Invalid binary expression: one or more operands are null.");
+        }
+
+        if(!(leftSymbol instanceof HasReturnType leftReturnTypeSymbol) || !(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
+            throw new SemanticException(operator, "Invalid binary expression: one or more operands are not of type ReturnTypeSymbol.");
+        }
+
+        Either<PrimitiveType, String> leftType = leftReturnTypeSymbol.getReturnType();
+        Either<PrimitiveType, String> rightType = rightReturnTypeSymbol.getReturnType();
+
+        if(leftType.isLeft() && rightType.isLeft()) {
+            PrimitiveType type = TypeChecker.checkBinaryExpression(operator, leftType.getLeft(), rightType.getLeft());
+            return new ValueSymbol(Either.left(type));
+        }
+
+        if((leftType.isLeft() && leftType.getLeft() == PrimitiveType.STRING) || (rightType.isLeft() && rightType.getLeft() == PrimitiveType.STRING)) {
+            if(operator.type() == TokenType.ADD) {
+                return new ValueSymbol(Either.left(PrimitiveType.STRING));
+            }
+
+            throw error(operator, "Invalid binary expression: operator '" + operator.type().name() + "' cannot be used with strings.");
+        }
+
+        // TODO: Handle operator overloading maybe (?)
+        throw error(operator, "Invalid binary expression: operator '" + operator.type().name() + "' cannot be used with types '" + leftType + "' and '" + rightType + "'.");
+    }
+
+    @Override
+    public Symbol visitCall(Expression.Call expression) {
+        Expression callee = expression.getCallee();
+        List<Expression> arguments = expression.getArguments();
+
+        Symbol calleeSymbol = callee.accept(this);
+        if (calleeSymbol == null) {
+            throw new SemanticException(expression.getParen(), "Invalid call expression: callee is null.");
+        }
+
+        if(!(calleeSymbol instanceof MethodSymbol methodSymbol)) {
+            throw new SemanticException(expression.getParen(), "Invalid call expression: callee is not of type MethodSymbol.");
+        }
+
+        List<VariableSymbol> parameters = methodSymbol.getParameters();
+        if (parameters.size() != arguments.size()) {
+            throw new SemanticException(expression.getParen(), "Invalid call expression: expected " + parameters.size() + " arguments, but got " + arguments.size() + " arguments.");
+        }
+
+        for (int i = 0; i < parameters.size(); i++) { // TODO: Copilot wrote this, confirm that it's correct lol
+            VariableSymbol parameter = parameters.get(i);
+            Expression argument = arguments.get(i);
+            Symbol argumentSymbol = argument.accept(this);
+
+            if (argumentSymbol == null) {
+                throw new SemanticException(expression.getParen(), "Invalid call expression: argument is null.");
+            }
+
+            if(!(argumentSymbol instanceof HasReturnType argumentReturnTypeSymbol)) {
+                throw new SemanticException(expression.getParen(), "Invalid call expression: argument is not of type ReturnTypeSymbol.");
+            }
+
+            Either<PrimitiveType, String> argumentType = argumentReturnTypeSymbol.getReturnType();
+            Either<PrimitiveType, String> parameterType = parameter.getReturnType();
+
+            if (argumentType.isLeft() && parameterType.isLeft()) {
+                if (argumentType.getLeft() != parameterType.getLeft()) {
+                    throw new SemanticException(expression.getParen(), "Invalid call expression: expected argument of type '" + parameterType.getLeft() + "', but got argument of type '" + argumentType.getLeft() + "'.");
+                }
+            } else if (argumentType.isRight() && parameterType.isRight()) {
+                if (!argumentType.getRight().equals(parameterType.getRight())) {
+                    throw new SemanticException(expression.getParen(), "Invalid call expression: expected argument of type '" + parameterType.getRight() + "', but got argument of type '" + argumentType.getRight() + "'.");
+                }
+            } else {
+                throw new SemanticException(expression.getParen(), "Invalid call expression: argument and parameter types do not match.");
+            }
+        }
+
+        return methodSymbol;
+    }
+
+    @Override
+    public Symbol visitNew(Expression.New expression) {
+        Expression call = expression.getCall();
+
+        Symbol callSymbol = call.accept(this);
+        if (callSymbol == null) {
+            throw new SemanticException(expression.getKeyword(), "Invalid new expression: call is null.");
+        }
+
+        if(!(callSymbol instanceof ClassSymbol classSymbol)) {
+            throw new SemanticException(expression.getKeyword(), "Invalid new expression: call is not of type ClassSymbol.");
+        }
+
+        return classSymbol;
+    }
+
+    @Override
+    public Symbol visitGet(Expression.Get expression) {
+        Expression object = expression.getObject();
+        Token name = expression.getName();
+
+        Symbol objectSymbol = object.accept(this);
+        if (objectSymbol == null) {
+            throw new SemanticException(name, "Invalid get expression: object is null.");
+        }
+
+        return null; // TODO
+    }
+
+    @Override
+    public Symbol visitSet(Expression.Set expression) {
+        Expression object = expression.getObject();
+        Token name = expression.getName();
+        Expression value = expression.getValue();
+
+        Symbol objectSymbol = object.accept(this);
+        if (objectSymbol == null) {
+            throw new SemanticException(name, "Invalid set expression: object is null.");
+        }
+
+        return null; // TODO
+    }
+
+    @Override
+    public Symbol visitThis(Expression.This expression) {
+        return null;
+    }
+
+    @Override
+    public Symbol visitSuper(Expression.Super expression) {
+        return null;
+    }
+
+    @Override
+    public Symbol visitGrouping(Expression.Grouping expression) {
+        Expression expr = expression.getExpression();
+        return expr.accept(this);
+    }
+
+    @Override
+    public Symbol visitLiteral(Expression.Literal expression) {
+        Object value = expression.getValue();
+
+        return switch (value) {
+            case Integer _ -> new ValueSymbol(Either.left(PrimitiveType.INT));
+            case Double _ -> new ValueSymbol(Either.left(PrimitiveType.DOUBLE));
+            case Boolean _ -> new ValueSymbol(Either.left(PrimitiveType.BOOL));
+            case String _ -> new ValueSymbol(Either.left(PrimitiveType.STRING));
+            case Float _ -> new ValueSymbol(Either.left(PrimitiveType.FLOAT));
+            case Long _ -> new ValueSymbol(Either.left(PrimitiveType.LONG));
+            case Short _ -> new ValueSymbol(Either.left(PrimitiveType.SHORT));
+            case Byte _ -> new ValueSymbol(Either.left(PrimitiveType.BYTE));
+            case Character _ -> new ValueSymbol(Either.left(PrimitiveType.CHAR));
+            case null, default ->
+                    throw error(null, "Invalid literal expression: value is not of a valid type. Value: " + value);
+        };
+    }
+
+    @Override
+    public Symbol visitLogical(Expression.Logical expression) {
+        Token operator = expression.getOperator();
+        Expression left = expression.getLeft();
+        Expression right = expression.getRight();
+
+        Symbol leftSymbol = left.accept(this);
+        Symbol rightSymbol = right.accept(this);
+
+        if (leftSymbol == null || rightSymbol == null) {
+            throw new SemanticException(operator, "Invalid logical expression: one or more operands are null.");
+        }
+
+        if(!(leftSymbol instanceof HasReturnType leftReturnTypeSymbol) || !(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
+            throw new SemanticException(operator, "Invalid logical expression: one or more operands are not of type ReturnTypeSymbol.");
+        }
+
+        Either<PrimitiveType, String> leftType = leftReturnTypeSymbol.getReturnType();
+        Either<PrimitiveType, String> rightType = rightReturnTypeSymbol.getReturnType();
+
+        if(leftType.isLeft() && rightType.isLeft()) {
+            if (operator.type() == TokenType.OR || operator.type() == TokenType.AND) {
+                if (leftType.getLeft() == PrimitiveType.BOOL && rightType.getLeft() == PrimitiveType.BOOL) {
+                    return new ValueSymbol(Either.left(PrimitiveType.BOOL));
+                }
+            }
+        }
+
+        throw error(operator, "Invalid logical expression: operator '" + operator.type().name() + "' cannot be used with types '" + leftType + "' and '" + rightType + "'.");
+    }
+
+    @Override
+    public Symbol visitUnary(Expression.Unary expression) {
+        Token operator = expression.getOperator();
+        Expression right = expression.getRight();
+
+        Symbol rightSymbol = right.accept(this);
+        if (rightSymbol == null) {
+            throw new SemanticException(operator, "Invalid unary expression: right operand is null.");
+        }
+
+        if(!(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
+            throw new SemanticException(operator, "Invalid unary expression: right operand does not have a type.");
+        }
+
+        Either<PrimitiveType, String> rightType = rightReturnTypeSymbol.getReturnType();
+
+        if(rightType.isLeft()) {
+            PrimitiveType type = TypeChecker.checkUnaryExpression(operator, rightType.getLeft());
+            return new ValueSymbol(Either.left(type));
+        }
+
+        if(rightType.isRight()) {
+            throw error(operator, "Invalid unary expression: right operand type is invalid.");
+        }
+
+        throw error(operator, "Invalid unary expression: right operand type is invalid.");
+    }
+
+    @Override
+    public Symbol visitVariable(Expression.Variable expression) {
+        Token name = expression.getName();
+
+        String nameValue = (String) name.value();
+        if (!this.symbolTable.containsSymbol(nameValue, SymbolType.VARIABLE)) {
+            throw error(name, "Variable with name '" + name.value() + "' does not exist in this scope!");
+        }
+
+        return this.symbolTable.getVariable(nameValue);
+    }
+
+    @Override
+    public Symbol visitFunction(Expression.Function expression) {
+        Token name = expression.getName();
+
+        String nameValue = (String) name.value();
+        if (!this.symbolTable.containsSymbol(nameValue, SymbolType.METHOD)) {
+            throw error(name, "Method with name '" + name.value() + "' does not exist in this scope!");
+        }
+
+        return this.symbolTable.getMethods(nameValue).getFirst();
+    }
+
+    @Override
+    public Symbol visitExtends(Expression.Extends expression) {
+        Token superClass = expression.getName();
+
+        String superClassValue = (String) superClass.value();
+        if (!this.symbolTable.containsSymbol(superClassValue, SymbolType.CLASS)) {
+            throw error(superClass, "Class with name '" + superClass.value() + "' does not exist in this scope!");
+        }
+
+        return this.symbolTable.getClass(superClassValue);
+    }
+
     private static VariableSymbol handleField(SemanticAnalyzer semanticAnalyzer, Statement.VariableStatement field) {
         Token fieldName = field.getName();
         Token fieldType = field.getType();
@@ -240,19 +523,19 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         String nameValue = (String) methodName.value();
         var symbol = new MethodSymbol(nameValue, returnType, parametersSymbols);
 
-        List<MethodSymbol> methods = semanticAnalyzer.symbolTable.getMethods(nameValue);
-        if (methods != null) {
-            boolean methodAlreadyOverloaded = false;
-            for (MethodSymbol otherMethod : methods) {
-                if (otherMethod.matches(symbol.getParameters())) {
-                    semanticAnalyzer.error(methodName, "Method with name '" + methodName.value() + "' already exists in this scope!");
-                    methodAlreadyOverloaded = true;
-                }
-            }
-
-            if (methodAlreadyOverloaded)
-                throw new SemanticException(methodName, "Method with name '" + methodName.value() + "' already exists in this scope!");
-        }
+//        List<MethodSymbol> methods = semanticAnalyzer.symbolTable.getMethods(nameValue);
+//        if (methods != null) {
+//            boolean methodAlreadyOverloaded = false;
+//            for (MethodSymbol otherMethod : methods) {
+//                if (otherMethod.matches(symbol.getParameters())) {
+//                    semanticAnalyzer.error(methodName, "Method with name '" + methodName.value() + "' already exists in this scope!");
+//                    methodAlreadyOverloaded = true;
+//                }
+//            }
+//
+//            if (methodAlreadyOverloaded)
+//                throw new SemanticException(methodName, "Method with name '" + methodName.value() + "' already exists in this scope!");
+//        }
 
         semanticAnalyzer.symbolTable.addSymbol(symbol);
 
@@ -347,155 +630,11 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         return exception;
     }
 
-    @Override
-    public Symbol visitAssign(Expression.Assign expression) {
-        Token name = expression.getName();
-        Expression value = expression.getValue();
-
-        String nameValue = (String) name.value();
-        if (!this.symbolTable.containsSymbol(nameValue, SymbolType.VARIABLE)) {
-            throw error(name, "Variable with name '" + name.value() + "' does not exist in this scope!");
-        }
-
-        value.accept(this);
-        return this.symbolTable.getVariable(nameValue);
+    public boolean hadError() {
+        return !this.errors.isEmpty();
     }
 
-    @Override
-    public Symbol visitBinary(Expression.Binary expression) {
-        Token operator = expression.getOperator();
-        Expression left = expression.getLeft();
-        Expression right = expression.getRight();
-
-        Symbol leftSymbol = left.accept(this);
-        Symbol rightSymbol = right.accept(this);
-
-        if (leftSymbol == null || rightSymbol == null) {
-            throw new SemanticException(operator, "Invalid binary expression: one or more operands are null.");
-        }
-
-        if(!(leftSymbol instanceof ReturnTypeSymbol leftReturnTypeSymbol) || !(rightSymbol instanceof ReturnTypeSymbol rightReturnTypeSymbol)) {
-            throw new SemanticException(operator, "Invalid binary expression: one or more operands are not of type ReturnTypeSymbol.");
-        }
-
-        Either<PrimitiveType, String> leftType = leftReturnTypeSymbol.getReturnType();
-        Either<PrimitiveType, String> rightType = rightReturnTypeSymbol.getReturnType();
-
-        Either<PrimitiveType, String> type = checkBinaryExpression(operator, leftType, rightType);
-        return null; // TODO: i think this should return some special symbol
-    }
-
-    @Override
-    public Symbol visitCall(Expression.Call expression) {
-        Expression callee = expression.getCallee();
-        List<Expression> arguments = expression.getArguments();
-
-        return null; // TODO
-    }
-
-    @Override
-    public Symbol visitNew(Expression.New expression) {
-        Expression call = expression.getCall();
-
-        return null; // TODO
-    }
-
-    @Override
-    public Symbol visitGet(Expression.Get expression) {
-        Expression object = expression.getObject();
-        Token name = expression.getName();
-
-        return null; // TODO
-    }
-
-    @Override
-    public Symbol visitSet(Expression.Set expression) {
-        Expression object = expression.getObject();
-        Token name = expression.getName();
-        Expression value = expression.getValue();
-
-        return null; // TODO
-    }
-
-    @Override
-    public Symbol visitThis(Expression.This expression) {
-        return null;
-    }
-
-    @Override
-    public Symbol visitSuper(Expression.Super expression) {
-        return null;
-    }
-
-    @Override
-    public Symbol visitGrouping(Expression.Grouping expression) {
-        Expression expr = expression.getExpression();
-        return expr.accept(this);
-    }
-
-    @Override
-    public Symbol visitLiteral(Expression.Literal expression) {
-        Object value = expression.getValue();
-
-        return null; // TODO
-    }
-
-    @Override
-    public Symbol visitLogical(Expression.Logical expression) {
-        Token operator = expression.getOperator();
-        Expression left = expression.getLeft();
-        Expression right = expression.getRight();
-
-        return null; // TODO
-    }
-
-    @Override
-    public Symbol visitUnary(Expression.Unary expression) {
-        Token operator = expression.getOperator();
-        Expression right = expression.getRight();
-
-        return null; // TODO
-    }
-
-    @Override
-    public Symbol visitVariable(Expression.Variable expression) {
-        Token name = expression.getName();
-
-        String nameValue = (String) name.value();
-        if (!this.symbolTable.containsSymbol(nameValue, SymbolType.VARIABLE)) {
-            throw error(name, "Variable with name '" + name.value() + "' does not exist in this scope!");
-        }
-
-        return this.symbolTable.getVariable(nameValue);
-    }
-
-    @Override
-    public Symbol visitFunction(Expression.Function expression) {
-        Token name = expression.getName();
-
-        String nameValue = (String) name.value();
-        if (!this.symbolTable.containsSymbol(nameValue, SymbolType.METHOD)) {
-            throw error(name, "Method with name '" + name.value() + "' does not exist in this scope!");
-        }
-
-        return null;
-    }
-
-    @Override
-    public Symbol visitExtends(Expression.Extends expression) {
-        Token superClass = expression.getName();
-
-        String superClassValue = (String) superClass.value();
-        if (!this.symbolTable.containsSymbol(superClassValue, SymbolType.CLASS)) {
-            throw error(superClass, "Class with name '" + superClass.value() + "' does not exist in this scope!");
-        }
-
-        return this.symbolTable.getClass(superClassValue);
-    }
-
-    private static Either<PrimitiveType, String> checkBinaryExpression(Token operator, Either<PrimitiveType, String> leftType, Either<PrimitiveType, String> rightType) {
-        // TODO: Kill me now
-
-        throw new SemanticException(operator, "Invalid binary expression: " + leftType + " " + operator + " " + rightType);
+    public List<SemanticException> getErrors() {
+        return this.errors;
     }
 }

@@ -88,7 +88,7 @@ public class SymbolTable {
     }
 
     public boolean containsSymbol(String name, Predicate<Symbol> predicate) {
-        return getSymbols(name, predicate) != null;
+        return !getSymbols(name, predicate).isEmpty();
     }
 
     public boolean containsSymbol(String name) {
