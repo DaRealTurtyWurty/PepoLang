@@ -1,0 +1,25 @@
+class Human {
+    string name;
+    int age;
+
+    Human(string name2, int age2) {
+        name = name2;
+        age = age2;
+    }
+
+    string getName() {
+        return name;
+    }
+
+    int getAge() {
+        return age;
+    }
+}
+
+void main() {
+    Human human = new Human("John", 30);
+    print("Name: " + human.getName());
+    print("Age: " + human.getAge());
+}
+
+main();

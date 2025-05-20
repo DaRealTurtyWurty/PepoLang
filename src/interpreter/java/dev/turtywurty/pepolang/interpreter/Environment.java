@@ -19,7 +19,7 @@ public class Environment {
     
     // global environment
     public Environment() {
-        this.enclosing = null;
+        this(null);
     }
 
     public Environment getEnclosing() {
@@ -27,21 +27,21 @@ public class Environment {
     }
 
     public void defineClass(String name, PepoClass value) {
-        if (this.classes.containsKey(name))
+        if (this.classes.containsKey(name) && classes.get(name) != null && value != null)
             throw new RuntimeError("Class with name '" + name + "' already defined!");
 
         this.classes.put(name, value);
     }
 
     public void defineVariable(String name, Object value) {
-        if (this.variables.containsKey(name))
+        if (this.variables.containsKey(name) && variables.get(name) != null && value != null)
             throw new RuntimeError("Variable with name '" + name + "' already defined!");
 
         this.variables.put(name, value);
     }
 
     public void defineFunction(String name, PepoCallable value) {
-        if (this.functions.containsKey(name))
+        if (this.functions.containsKey(name) && functions.get(name) != null && value != null)
             throw new RuntimeError("Function with name '" + name + "' already defined!");
 
         this.functions.put(name, value);

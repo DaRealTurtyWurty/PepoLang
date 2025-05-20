@@ -76,7 +76,7 @@ public class Parser {
         List<Statement.FunctionStatement> staticMethods = new ArrayList<>();
         List<Statement.VariableStatement> staticFields = new ArrayList<>();
 
-        while(!check(TokenType.RBRACE)) {
+        while(!check(TokenType.RBRACE) && !isAtEnd()) {
             if(match(TokenType.KEYWORD_STATIC)) {
                 consume(tokenType -> tokenType.isTypeKeyword() || tokenType == TokenType.IDENTIFIER, "Expected type or identifier after 'static'.");
 
@@ -85,11 +85,16 @@ public class Parser {
                     staticMethods.add(fStatement);
                 else if(statement instanceof Statement.VariableStatement vStatement)
                     staticFields.add(vStatement);
+                else if(statement == null && hadError)
+                    continue;
+                else
+                    throw error(previous(), "Expected function or variable declaration after 'static'.");
+
                 continue;
             }
 
-            if (check(TokenType.IDENTIFIER)) {
-                Token identifier = previous();
+            if (check(TokenType.IDENTIFIER, TokenType.LPAREN)) {
+                Token identifier = advance();
                 if(Objects.equals(identifier.value(), name.value())) {
                     constructors.add(constructorDeclaration(name));
                     continue;
@@ -102,6 +107,11 @@ public class Parser {
                     methods.add(fStatement);
                 else if(statement instanceof Statement.VariableStatement vStatement)
                     fields.add(vStatement);
+                else if(statement == null && hadError)
+                    continue;
+                else
+                    throw error(previous(), "Expected function or variable declaration.");
+
                 continue;
             }
 
@@ -164,6 +174,8 @@ public class Parser {
     }
 
     private Statement.ConstructorStatement constructorDeclaration(Token name) {
+        consume(TokenType.LPAREN, "Expected '(' after constructor name.");
+
         List<Parameter> parameters = parseParameters();
 
         consume(TokenType.RPAREN, "Expected ')' after function parameters.");
@@ -427,7 +439,7 @@ public class Parser {
         if (match(TokenType.NOT, TokenType.SUB, TokenType.ADD)) {
             Token operator = previous();
             Expression expression = unary();
-            new Expression.Unary(operator, expression);
+            return new Expression.Unary(operator, expression);
         }
 
         return newExpr();

@@ -52,7 +52,7 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
             }
         });
 
-        this.globals.defineFunction("random", new PepoCallable() {
+        this.globals.defineFunction("randomDouble", new PepoCallable() {
             @Override
             public int arity() {
                 return 2;
@@ -67,6 +67,29 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
                     throw new RuntimeError(null, "Both arguments must be numbers!");
 
                 return Math.random() * (maxNum.doubleValue() - minNum.doubleValue()) + minNum.doubleValue();
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("randomInt", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 2;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                Object min = arguments.get(0);
+                Object max = arguments.get(1);
+
+                if (!(min instanceof Number minNum && max instanceof Number maxNum))
+                    throw new RuntimeError(null, "Both arguments must be numbers!");
+
+                return (int) (Math.random() * (maxNum.doubleValue() - minNum.doubleValue()) + minNum.doubleValue());
             }
 
             @Override
@@ -112,6 +135,86 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
                 } catch (Exception e) {
                     throw new RuntimeError(null, "Error reading input: " + e.getMessage());
                 }
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("parseInt", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                Object value = arguments.getFirst();
+
+                if (!(value instanceof String str))
+                    throw new RuntimeError(null, "Argument must be a string!");
+
+                try {
+                    return Integer.parseInt(str);
+                } catch (NumberFormatException e) {
+                    throw new RuntimeError(null, "Invalid integer: " + str);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("parseDouble", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                Object value = arguments.getFirst();
+
+                if (!(value instanceof String str))
+                    throw new RuntimeError(null, "Argument must be a string!");
+
+                try {
+                    return Double.parseDouble(str);
+                } catch (NumberFormatException e) {
+                    throw new RuntimeError(null, "Invalid double: " + str);
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("sleep", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                Object value = arguments.getFirst();
+
+                if (!(value instanceof Number num))
+                    throw new RuntimeError(null, "Argument must be a number!");
+
+                try {
+                    Thread.sleep(num.longValue());
+                } catch (InterruptedException e) {
+                    throw new RuntimeError(null, "Sleep interrupted: " + e.getMessage());
+                }
+
+                return null;
             }
 
             @Override
@@ -293,12 +396,11 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
             arguments.add(evaluate(argument));
         }
 
-//        PepoFunction constructor = clazz.findMethod("constructor");
-//        if (constructor == null)
-//            throw new RuntimeError(expression.getKeyword(), "Expected a constructor!");
-//
-//        return constructor.call(this, arguments);
-        return null;
+        PepoFunction constructor = clazz.findMethod("constructor");
+        if (constructor == null)
+            throw new RuntimeError(expression.getKeyword(), "Expected a constructor!");
+
+        return constructor.call(this, arguments);
     }
 
     @Override
@@ -398,7 +500,7 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
         if (distance != null) {
             return environment.getFunctionAt(distance, (String) name.value());
         } else {
-            return globals.getFunction((String) name.value());
+            return this.environment.getFunction((String) name.value());
         }
     }
 
@@ -422,8 +524,11 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
     }
 
     private void checkNumberOperands(Token operator, Object left, Object right) {
+        if(left == null) left = 0;
+        if(right == null) right = 0;
         if (left instanceof Number && right instanceof Number) return;
-        throw new RuntimeError(operator, "Operands must be numbers.");
+        throw new RuntimeError(operator, "Operands must be numbers. Left is a %s, right is a %s"
+                .formatted(left.getClass().getSimpleName(), right.getClass().getSimpleName()));
     }
 
     private boolean isTruthy(Object object) {

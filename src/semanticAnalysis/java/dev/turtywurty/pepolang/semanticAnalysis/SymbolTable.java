@@ -20,6 +20,16 @@ public class SymbolTable {
     }
 
     public void exitScope() {
+        if (this.scopes.isEmpty()) {
+            System.err.println("Warning: Attempting to exit a scope when no scopes are present.");
+            return;
+        }
+
+        if(this.scopes.size() == 1) {
+            System.err.println("Warning: Attempting to exit the global scope. This may lead to undefined behavior.");
+            return;
+        }
+
         this.scopes.pop();
     }
 
@@ -50,7 +60,7 @@ public class SymbolTable {
     }
 
     public List<Symbol> getSymbols(String name) {
-        return getSymbols(name, symbol -> true);
+        return getSymbols(name, _ -> true);
     }
 
     public VariableSymbol getVariable(String name) {
@@ -97,5 +107,60 @@ public class SymbolTable {
 
     public boolean containsSymbol(String name, SymbolType symbolType) {
         return containsSymbol(name, symbol -> symbol.getSymbolType() == symbolType);
+    }
+
+    /**
+     * Checks if a symbol with the given name is defined ONLY in the current (top-most) scope.
+     * Does not search in parent scopes.
+     *
+     * @param name The name of the symbol to check.
+     * @return true if a symbol with the given name exists in the current scope, false otherwise.
+     */
+    public boolean isSymbolDefinedInCurrentScope(String name) {
+        if (this.scopes.isEmpty() || name == null) {
+            return false; // No scopes or no name to check
+        }
+        Map<String, List<Symbol>> currentScope = this.scopes.peek();
+        // Check if the name exists as a key and the list of symbols for that name is not empty.
+        List<Symbol> symbols = currentScope.get(name);
+        return symbols != null && !symbols.isEmpty();
+    }
+
+    /**
+     * Checks if a symbol with the given name and matching the predicate
+     * is defined ONLY in the current (top-most) scope.
+     * Does not search in parent scopes.
+     *
+     * @param name The name of the symbol to check.
+     * @param predicate The predicate to test the symbol(s).
+     * @return true if such a symbol exists in the current scope, false otherwise.
+     */
+    public boolean isSymbolDefinedInCurrentScope(String name, Predicate<Symbol> predicate) {
+        if (this.scopes.isEmpty() || name == null || predicate == null) {
+            return false;
+        }
+        Map<String, List<Symbol>> currentScope = this.scopes.peek();
+        List<Symbol> symbolsInCurrentScope = currentScope.get(name);
+
+        if (symbolsInCurrentScope != null) {
+            for (Symbol symbol : symbolsInCurrentScope) {
+                if (predicate.test(symbol)) {
+                    return true; // Found a matching symbol in the current scope
+                }
+            }
+        }
+        return false; // No matching symbol found in the current scope
+    }
+
+    /**
+     * Checks if a symbol with the given name and SymbolType
+     * is defined ONLY in the current (top-most) scope.
+     *
+     * @param name The name of the symbol.
+     * @param symbolType The type of the symbol.
+     * @return true if such a symbol exists in the current scope, false otherwise.
+     */
+    public boolean isSymbolDefinedInCurrentScope(String name, SymbolType symbolType) {
+        return isSymbolDefinedInCurrentScope(name, symbol -> symbol.getSymbolType() == symbolType);
     }
 }

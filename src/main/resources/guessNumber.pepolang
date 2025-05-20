@@ -1,0 +1,11 @@
+int diceRoll(int maxNumber) {
+    return randomInt(1, maxNumber);
+}
+
+void main() {
+    print("Hello");
+    sleep(1000L);
+    print("Hello again!");
+}
+
+main();

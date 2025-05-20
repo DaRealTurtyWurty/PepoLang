@@ -8,6 +8,7 @@ import dev.turtywurty.pepolang.semanticAnalysis.symbol.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVisitor<Symbol> {
     private final List<Statement> statements;
@@ -20,16 +21,21 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         this.symbolTable = new SymbolTable();
         this.symbolTable.addSymbol(new MethodSymbol("print", PrimitiveType.VOID, List.of(new VariableSymbol("value", PrimitiveType.STRING))));
         this.symbolTable.addSymbol(new MethodSymbol("time", PrimitiveType.LONG, List.of()));
-        this.symbolTable.addSymbol(new MethodSymbol("random", PrimitiveType.DOUBLE, List.of(new VariableSymbol("min", PrimitiveType.DOUBLE), new VariableSymbol("max", PrimitiveType.DOUBLE))));
+        this.symbolTable.addSymbol(new MethodSymbol("randomDouble", PrimitiveType.DOUBLE, List.of(new VariableSymbol("min", PrimitiveType.DOUBLE), new VariableSymbol("max", PrimitiveType.DOUBLE))));
+        this.symbolTable.addSymbol(new MethodSymbol("randomInt", PrimitiveType.INT, List.of(new VariableSymbol("min", PrimitiveType.INT), new VariableSymbol("max", PrimitiveType.INT))));
         this.symbolTable.addSymbol(new MethodSymbol("sqrt", PrimitiveType.DOUBLE, List.of(new VariableSymbol("value", PrimitiveType.DOUBLE))));
         this.symbolTable.addSymbol(new MethodSymbol("input", PrimitiveType.STRING, List.of(new VariableSymbol("prompt", PrimitiveType.STRING))));
+        this.symbolTable.addSymbol(new MethodSymbol("parseInt", PrimitiveType.INT, List.of(new VariableSymbol("value", PrimitiveType.STRING))));
+        this.symbolTable.addSymbol(new MethodSymbol("parseDouble", PrimitiveType.DOUBLE, List.of(new VariableSymbol("value", PrimitiveType.STRING))));
+        this.symbolTable.addSymbol(new MethodSymbol("sleep", PrimitiveType.VOID, List.of(new VariableSymbol("milliseconds", PrimitiveType.LONG))));
     }
 
     public void analyze() {
         for (Statement statement : this.statements) {
             try {
                 statement.accept(this);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
@@ -144,57 +150,61 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
     @Override
     public Symbol visitClassStatement(Statement.ClassStatement statement) {
-        Token name = statement.getName();
-
-        List<Statement.VariableStatement> staticFields = statement.getStaticFields();
-        List<Statement.FunctionStatement> staticMethods = statement.getStaticMethods();
-        List<Statement.VariableStatement> fields = statement.getFields();
-        List<Statement.FunctionStatement> methods = statement.getMethods();
-        List<Statement.ConstructorStatement> constructors = statement.getConstructors();
-
-        String nameValue = (String) name.value();
-        if (this.symbolTable.containsSymbol(nameValue, SymbolType.CLASS)) {
-            throw error(name, "Class with name '" + name.value() + "' already exists in this scope!");
+        Token nameToken = statement.getName();
+        String className = (String) nameToken.value();
+        if (this.symbolTable.isSymbolDefinedInCurrentScope(className)) {
+            throw error(nameToken, "Class with name '" + className + "' already exists in this scope!");
         }
+
+        var classSymbol = new ClassSymbol(className, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        this.symbolTable.addSymbol(classSymbol);
 
         this.symbolTable.enterScope();
 
-        List<VariableSymbol> staticFieldsSymbols = new ArrayList<>();
-        for (Statement.VariableStatement staticField : staticFields) {
-            staticFieldsSymbols.add(handleField(this, staticField));
+        var thisSymbol = new VariableSymbol("this", className);
+        this.symbolTable.addSymbol(thisSymbol);
+
+        List<VariableSymbol> staticFields = new ArrayList<>();
+        for (Statement.VariableStatement staticField : statement.getStaticFields()) {
+            staticFields.add(handleField(this, staticField));
         }
 
-        List<MethodSymbol> staticMethodsSymbols = new ArrayList<>();
-        for (Statement.FunctionStatement staticMethod : staticMethods) {
-            staticMethodsSymbols.add(handleMethod(this, staticMethod));
+        classSymbol.getStaticFields().addAll(staticFields);
+
+        List<MethodSymbol> staticMethods = new ArrayList<>();
+        for (Statement.FunctionStatement staticMethod : statement.getStaticMethods()) {
+            staticMethods.add(handleMethod(this, staticMethod));
         }
 
-        List<VariableSymbol> fieldsSymbols = new ArrayList<>();
-        for (Statement.VariableStatement field : fields) {
-            fieldsSymbols.add(handleField(this, field));
+        classSymbol.getStaticMethods().addAll(staticMethods);
+
+        List<VariableSymbol> fields = new ArrayList<>();
+        for (Statement.VariableStatement field : statement.getFields()) {
+            fields.add(handleField(this, field));
+        }
+        classSymbol.getFields().addAll(fields);
+
+        List<MethodSymbol> methods = new ArrayList<>();
+        for (Statement.FunctionStatement method : statement.getMethods()) {
+            methods.add(handleMethod(this, method));
         }
 
-        List<MethodSymbol> methodsSymbols = new ArrayList<>();
-        for (Statement.FunctionStatement method : methods) {
-            methodsSymbols.add(handleMethod(this, method));
+        classSymbol.getMethods().addAll(methods);
+
+        List<MethodSymbol> constructors = new ArrayList<>();
+        for (Statement.ConstructorStatement constructor : statement.getConstructors()) {
+            constructors.add(handleConstructor(this, constructor, classSymbol));
         }
 
-        List<MethodSymbol> constructorsSymbols = new ArrayList<>();
-        for (Statement.ConstructorStatement constructor : constructors) {
-            constructorsSymbols.add(handleConstructor(this, constructor));
-        }
+        classSymbol.getConstructors().addAll(constructors);
 
         this.symbolTable.exitScope();
-
-        var symbol = new ClassSymbol(nameValue, staticFieldsSymbols, staticMethodsSymbols, fieldsSymbols, methodsSymbols, constructorsSymbols);
-        this.symbolTable.addSymbol(symbol);
-
-        return symbol;
+        return classSymbol;
     }
 
     @Override
     public Symbol visitConstructorStatement(Statement.ConstructorStatement statement) {
-        return handleConstructor(this, statement);
+        return handleConstructor(this, statement, null);
     }
 
     @Override
@@ -301,31 +311,92 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
     @Override
     public Symbol visitNew(Expression.New expression) {
-        Expression call = expression.getCall();
-
-        Symbol callSymbol = call.accept(this);
-        if (callSymbol == null) {
-            throw error(expression.getKeyword(), "Invalid new expression: call is null.");
+        Expression callLikeExpr = expression.getCall();
+        if (!(callLikeExpr instanceof Expression.Call call)) {
+            throw error(expression.getKeyword(), "Expected a constructor call after 'new', but got '%s'.".formatted(callLikeExpr));
         }
 
-        if (!(callSymbol instanceof ClassSymbol classSymbol)) {
-            throw error(expression.getKeyword(), "Invalid new expression: call is not of type ClassSymbol.");
+        Expression callee = call.getCallee();
+        String className;
+        Token classNameToken;
+
+        if (callee instanceof Expression.Function function) {
+            classNameToken = function.getName();
+            className = (String) classNameToken.value();
+        } else if (callee instanceof Expression.Variable variable) {
+            classNameToken = variable.getName();
+            className = (String) classNameToken.value();
+        } else {
+            throw error(expression.getKeyword(), "Expected a class name after 'new', but got '%s'.".formatted(callee));
         }
 
-        return classSymbol;
+        ClassSymbol foundSymbol = this.symbolTable.getClass(className);
+        if (foundSymbol == null) {
+            throw error(classNameToken, "Class with name '%s' does not exist in this scope!".formatted(className));
+        }
+
+        List<Either<PrimitiveType, String>> argumentTypes = new ArrayList<>();
+        for (Expression argExpr : call.getArguments()) {
+            Symbol argSymbol = argExpr.accept(this);
+            if (!(argSymbol instanceof HasReturnType argReturnTypeSymbol)) {
+                throw error(call.getParen(), "Argument in constructor call does not have a resolvable type.");
+            }
+
+            argumentTypes.add(argReturnTypeSymbol.getReturnType());
+        }
+
+        MethodSymbol constructorSymbol = foundSymbol.findConstructor(argumentTypes);
+        if (constructorSymbol == null) {
+            String argTypesString = argumentTypes.stream()
+                    .map(type -> type.map(PrimitiveType::toString, s -> s))
+                    .collect(Collectors.joining(", "));
+
+            throw error(classNameToken, "No matching constructor found for class '%s' with argument types (%s).".formatted(className, argTypesString));
+        }
+
+        return constructorSymbol;
     }
 
     @Override
     public Symbol visitGet(Expression.Get expression) {
         Expression object = expression.getObject();
-        Token name = expression.getName();
+        Token nameToken = expression.getName();
+        String memberName = (String) nameToken.value();
 
         Symbol objectSymbol = object.accept(this);
         if (objectSymbol == null) {
-            throw error(name, "Invalid get expression: object is null.");
+            String objectExprStr = (object instanceof Expression.Variable variable) ?
+                    "'" + variable.getName().value() + "'" :
+                    "object expression";
+            throw error(nameToken, "Invalid get expression: " + objectExprStr + " could not be resolved.");
         }
 
-        return null; // TODO
+        if (!(objectSymbol instanceof HasReturnType objectTypeProvider)) {
+            throw error(nameToken, "Invalid get expression: object '" + objectSymbol.getName() + "' does not have a retrievable type.");
+        }
+
+        Either<PrimitiveType, String> objectType = objectTypeProvider.getReturnType();
+        if(objectType.isLeft()) {
+            throw error(nameToken, "Cannot access property '" + memberName + "' on primitive type '" + objectType.getLeft() + "'.");
+        }
+
+        String className = objectType.getRight();
+        ClassSymbol classSymbol = this.symbolTable.getClass(className);
+        if(classSymbol == null) {
+            throw error(nameToken, "Class with name '%s' does not exist in this scope!".formatted(className));
+        }
+
+        VariableSymbol fieldSymbol = classSymbol.findField(memberName);
+        if(fieldSymbol != null) {
+            return fieldSymbol; // TODO: Static and visibility checks
+        }
+
+        MethodSymbol methodSymbol = classSymbol.findMethod(memberName);
+        if(methodSymbol != null) {
+            return methodSymbol; // TODO: Static and visibility checks
+        }
+
+        throw error(nameToken, "Class '%s' does not have a member with name '%s'.".formatted(className, memberName));
     }
 
     @Override
@@ -482,15 +553,16 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         }
 
         String fieldNameValue = (String) fieldName.value();
-        if (semanticAnalyzer.symbolTable.containsSymbol(fieldNameValue, SymbolType.FIELD)) {
+        if (semanticAnalyzer.symbolTable.isSymbolDefinedInCurrentScope(fieldNameValue, SymbolType.FIELD)) {
             throw semanticAnalyzer.error(fieldName, "Field with name '" + fieldName.value() + "' already exists in this scope!");
         }
 
-        VariableSymbol symbol = new VariableSymbol(fieldNameValue, fieldType);
+        var symbol = new VariableSymbol(fieldNameValue, fieldType);
         semanticAnalyzer.symbolTable.addSymbol(symbol);
 
         if (initializer != null) {
             initializer.accept(semanticAnalyzer);
+            // TODO: Type check initializer against field type
         }
 
         return symbol;
@@ -553,50 +625,31 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         return symbol;
     }
 
-    private static MethodSymbol handleConstructor(SemanticAnalyzer semanticAnalyzer, Statement.ConstructorStatement constructor) {
-        Token constructorName = constructor.getName();
+    private static MethodSymbol handleConstructor(SemanticAnalyzer semanticAnalyzer, Statement.ConstructorStatement constructor, ClassSymbol ownerClass) {
         List<Parameter> parameters = constructor.getParameters();
-
-        ClassSymbol classSymbol = semanticAnalyzer.symbolTable.getClass((String) constructorName.value());
-        if (classSymbol == null) {
-            throw semanticAnalyzer.error(constructorName, "Class with name '" + constructorName.value() + "' does not exist in this scope!");
-        }
 
         List<VariableSymbol> paramSymbols = new ArrayList<>();
         for (Parameter param : parameters) {
             Token paramName = param.name();
             Token paramType = param.type();
-            VariableSymbol paramSymbol = new VariableSymbol((String) paramName.value(), paramType);
+            if (paramType.type() == TokenType.KEYWORD_VOID) {
+                throw semanticAnalyzer.error(paramType, "Cannot use 'void' as a parameter type!");
+            }
+
+            var paramSymbol = new VariableSymbol((String) paramName.value(), paramType);
             paramSymbols.add(paramSymbol);
         }
 
-        List<MethodSymbol> constructors = semanticAnalyzer.symbolTable.getSymbols(
-                (String) constructorName.value(),
-                symbol -> {
-                    if (symbol.getSymbolType() != SymbolType.METHOD)
-                        return false;
-
-                    if (symbol instanceof MethodSymbol methSymbol &&
-                            methSymbol.getReturnType().isLeft() &&
-                            methSymbol.getReturnType().getLeft() == PrimitiveType.VOID)
-                        return methSymbol.matches(paramSymbols);
-
-                    return false;
-                }).stream().map(MethodSymbol.class::cast).toList();
-
-        if (!constructors.isEmpty()) {
-            throw semanticAnalyzer.error(constructorName, "Constructor " + getMethodSignature(constructors.getFirst()) + " already exists in this scope!");
-        }
-
-        MethodSymbol constructorSymbol = new MethodSymbol((String) constructorName.value(), PrimitiveType.VOID, paramSymbols);
+        var constructorSymbol = new MethodSymbol(ownerClass.getName(), PrimitiveType.VOID, paramSymbols);
         semanticAnalyzer.symbolTable.addSymbol(constructorSymbol);
 
         semanticAnalyzer.symbolTable.enterScope();
-        for (VariableSymbol paramSymbol : paramSymbols) {
-            semanticAnalyzer.symbolTable.addSymbol(paramSymbol);
+        for (VariableSymbol param : paramSymbols) {
+            semanticAnalyzer.symbolTable.addSymbol(param);
         }
 
-        for (Statement stmt : constructor.getBody()) {
+        List<Statement> body = constructor.getBody();
+        for (Statement stmt : body) {
             stmt.accept(semanticAnalyzer);
         }
 
@@ -605,7 +658,7 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
     }
 
     private static String getMethodSignature(MethodSymbol method) {
-        StringBuilder signature = new StringBuilder();
+        var signature = new StringBuilder();
         signature.append((String) method.getReturnType().map(
                 primitiveType -> primitiveType.name().toLowerCase(Locale.ROOT),
                 classType -> classType));
@@ -621,11 +674,12 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
                 signature.append(", ");
             }
         }
+
         signature.append(")");
         return signature.toString();
     }
 
-    private SemanticException error(Token token, String message) {
+    public SemanticException error(Token token, String message) {
         var exception = new SemanticException(token, message);
         this.errors.add(exception);
         return exception;
