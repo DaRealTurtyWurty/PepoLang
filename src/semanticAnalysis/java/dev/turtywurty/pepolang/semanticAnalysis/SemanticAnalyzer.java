@@ -20,15 +20,16 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         this.symbolTable = new SymbolTable();
         this.symbolTable.addSymbol(new MethodSymbol("print", PrimitiveType.VOID, List.of(new VariableSymbol("value", PrimitiveType.STRING))));
         this.symbolTable.addSymbol(new MethodSymbol("time", PrimitiveType.LONG, List.of()));
-
-        for (Statement statement : statements) {
-            statement.accept(this);
-        }
+        this.symbolTable.addSymbol(new MethodSymbol("random", PrimitiveType.DOUBLE, List.of(new VariableSymbol("min", PrimitiveType.DOUBLE), new VariableSymbol("max", PrimitiveType.DOUBLE))));
+        this.symbolTable.addSymbol(new MethodSymbol("sqrt", PrimitiveType.DOUBLE, List.of(new VariableSymbol("value", PrimitiveType.DOUBLE))));
+        this.symbolTable.addSymbol(new MethodSymbol("input", PrimitiveType.STRING, List.of(new VariableSymbol("prompt", PrimitiveType.STRING))));
     }
 
     public void analyze() {
         for (Statement statement : this.statements) {
-            statement.accept(this);
+            try {
+                statement.accept(this);
+            } catch (Exception ignored) {}
         }
     }
 
@@ -220,23 +221,23 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         Symbol rightSymbol = right.accept(this);
 
         if (leftSymbol == null || rightSymbol == null) {
-            throw new SemanticException(operator, "Invalid binary expression: one or more operands are null.");
+            throw error(operator, "Invalid binary expression: one or more operands are null.");
         }
 
-        if(!(leftSymbol instanceof HasReturnType leftReturnTypeSymbol) || !(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
-            throw new SemanticException(operator, "Invalid binary expression: one or more operands are not of type ReturnTypeSymbol.");
+        if (!(leftSymbol instanceof HasReturnType leftReturnTypeSymbol) || !(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
+            throw error(operator, "Invalid binary expression: one or more operands are not of type ReturnTypeSymbol.");
         }
 
         Either<PrimitiveType, String> leftType = leftReturnTypeSymbol.getReturnType();
         Either<PrimitiveType, String> rightType = rightReturnTypeSymbol.getReturnType();
 
-        if(leftType.isLeft() && rightType.isLeft()) {
+        if (leftType.isLeft() && rightType.isLeft()) {
             PrimitiveType type = TypeChecker.checkBinaryExpression(operator, leftType.getLeft(), rightType.getLeft());
             return new ValueSymbol(Either.left(type));
         }
 
-        if((leftType.isLeft() && leftType.getLeft() == PrimitiveType.STRING) || (rightType.isLeft() && rightType.getLeft() == PrimitiveType.STRING)) {
-            if(operator.type() == TokenType.ADD) {
+        if ((leftType.isLeft() && leftType.getLeft() == PrimitiveType.STRING) || (rightType.isLeft() && rightType.getLeft() == PrimitiveType.STRING)) {
+            if (operator.type() == TokenType.ADD) {
                 return new ValueSymbol(Either.left(PrimitiveType.STRING));
             }
 
@@ -254,16 +255,16 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
         Symbol calleeSymbol = callee.accept(this);
         if (calleeSymbol == null) {
-            throw new SemanticException(expression.getParen(), "Invalid call expression: callee is null.");
+            throw error(expression.getParen(), "Invalid call expression: callee is null.");
         }
 
-        if(!(calleeSymbol instanceof MethodSymbol methodSymbol)) {
-            throw new SemanticException(expression.getParen(), "Invalid call expression: callee is not of type MethodSymbol.");
+        if (!(calleeSymbol instanceof MethodSymbol methodSymbol)) {
+            throw error(expression.getParen(), "Invalid call expression: callee is not of type MethodSymbol.");
         }
 
         List<VariableSymbol> parameters = methodSymbol.getParameters();
         if (parameters.size() != arguments.size()) {
-            throw new SemanticException(expression.getParen(), "Invalid call expression: expected " + parameters.size() + " arguments, but got " + arguments.size() + " arguments.");
+            throw error(expression.getParen(), "Method '%s' has %d parameters, but %d arguments were provided.".formatted(methodSymbol.getName(), parameters.size(), arguments.size()));
         }
 
         for (int i = 0; i < parameters.size(); i++) { // TODO: Copilot wrote this, confirm that it's correct lol
@@ -272,11 +273,11 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
             Symbol argumentSymbol = argument.accept(this);
 
             if (argumentSymbol == null) {
-                throw new SemanticException(expression.getParen(), "Invalid call expression: argument is null.");
+                throw error(expression.getParen(), "Invalid call expression: argument is null.");
             }
 
-            if(!(argumentSymbol instanceof HasReturnType argumentReturnTypeSymbol)) {
-                throw new SemanticException(expression.getParen(), "Invalid call expression: argument is not of type ReturnTypeSymbol.");
+            if (!(argumentSymbol instanceof HasReturnType argumentReturnTypeSymbol)) {
+                throw error(expression.getParen(), "Invalid call expression: argument is not of type ReturnTypeSymbol.");
             }
 
             Either<PrimitiveType, String> argumentType = argumentReturnTypeSymbol.getReturnType();
@@ -284,14 +285,14 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
             if (argumentType.isLeft() && parameterType.isLeft()) {
                 if (argumentType.getLeft() != parameterType.getLeft()) {
-                    throw new SemanticException(expression.getParen(), "Invalid call expression: expected argument of type '" + parameterType.getLeft() + "', but got argument of type '" + argumentType.getLeft() + "'.");
+                    throw error(expression.getParen(), "Invalid call expression: expected argument of type '" + parameterType.getLeft() + "', but got argument of type '" + argumentType.getLeft() + "'.");
                 }
             } else if (argumentType.isRight() && parameterType.isRight()) {
                 if (!argumentType.getRight().equals(parameterType.getRight())) {
-                    throw new SemanticException(expression.getParen(), "Invalid call expression: expected argument of type '" + parameterType.getRight() + "', but got argument of type '" + argumentType.getRight() + "'.");
+                    throw error(expression.getParen(), "Invalid call expression: expected argument of type '" + parameterType.getRight() + "', but got argument of type '" + argumentType.getRight() + "'.");
                 }
             } else {
-                throw new SemanticException(expression.getParen(), "Invalid call expression: argument and parameter types do not match.");
+                throw error(expression.getParen(), "Invalid call expression: argument and parameter types do not match.");
             }
         }
 
@@ -304,11 +305,11 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
         Symbol callSymbol = call.accept(this);
         if (callSymbol == null) {
-            throw new SemanticException(expression.getKeyword(), "Invalid new expression: call is null.");
+            throw error(expression.getKeyword(), "Invalid new expression: call is null.");
         }
 
-        if(!(callSymbol instanceof ClassSymbol classSymbol)) {
-            throw new SemanticException(expression.getKeyword(), "Invalid new expression: call is not of type ClassSymbol.");
+        if (!(callSymbol instanceof ClassSymbol classSymbol)) {
+            throw error(expression.getKeyword(), "Invalid new expression: call is not of type ClassSymbol.");
         }
 
         return classSymbol;
@@ -321,7 +322,7 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
         Symbol objectSymbol = object.accept(this);
         if (objectSymbol == null) {
-            throw new SemanticException(name, "Invalid get expression: object is null.");
+            throw error(name, "Invalid get expression: object is null.");
         }
 
         return null; // TODO
@@ -335,7 +336,7 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
         Symbol objectSymbol = object.accept(this);
         if (objectSymbol == null) {
-            throw new SemanticException(name, "Invalid set expression: object is null.");
+            throw error(name, "Invalid set expression: object is null.");
         }
 
         return null; // TODO
@@ -386,17 +387,17 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
         Symbol rightSymbol = right.accept(this);
 
         if (leftSymbol == null || rightSymbol == null) {
-            throw new SemanticException(operator, "Invalid logical expression: one or more operands are null.");
+            throw error(operator, "Invalid logical expression: one or more operands are null.");
         }
 
-        if(!(leftSymbol instanceof HasReturnType leftReturnTypeSymbol) || !(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
-            throw new SemanticException(operator, "Invalid logical expression: one or more operands are not of type ReturnTypeSymbol.");
+        if (!(leftSymbol instanceof HasReturnType leftReturnTypeSymbol) || !(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
+            throw error(operator, "Invalid logical expression: one or more operands are not of type ReturnTypeSymbol.");
         }
 
         Either<PrimitiveType, String> leftType = leftReturnTypeSymbol.getReturnType();
         Either<PrimitiveType, String> rightType = rightReturnTypeSymbol.getReturnType();
 
-        if(leftType.isLeft() && rightType.isLeft()) {
+        if (leftType.isLeft() && rightType.isLeft()) {
             if (operator.type() == TokenType.OR || operator.type() == TokenType.AND) {
                 if (leftType.getLeft() == PrimitiveType.BOOL && rightType.getLeft() == PrimitiveType.BOOL) {
                     return new ValueSymbol(Either.left(PrimitiveType.BOOL));
@@ -414,21 +415,21 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 
         Symbol rightSymbol = right.accept(this);
         if (rightSymbol == null) {
-            throw new SemanticException(operator, "Invalid unary expression: right operand is null.");
+            throw error(operator, "Invalid unary expression: right operand is null.");
         }
 
-        if(!(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
-            throw new SemanticException(operator, "Invalid unary expression: right operand does not have a type.");
+        if (!(rightSymbol instanceof HasReturnType rightReturnTypeSymbol)) {
+            throw error(operator, "Invalid unary expression: right operand does not have a type.");
         }
 
         Either<PrimitiveType, String> rightType = rightReturnTypeSymbol.getReturnType();
 
-        if(rightType.isLeft()) {
+        if (rightType.isLeft()) {
             PrimitiveType type = TypeChecker.checkUnaryExpression(operator, rightType.getLeft());
             return new ValueSymbol(Either.left(type));
         }
 
-        if(rightType.isRight()) {
+        if (rightType.isRight()) {
             throw error(operator, "Invalid unary expression: right operand type is invalid.");
         }
 
@@ -534,7 +535,7 @@ public class SemanticAnalyzer implements StatementVisitor<Symbol>, ExpressionVis
 //            }
 //
 //            if (methodAlreadyOverloaded)
-//                throw new SemanticException(methodName, "Method with name '" + methodName.value() + "' already exists in this scope!");
+//                throw error(methodName, "Method with name '" + methodName.value() + "' already exists in this scope!");
 //        }
 
         semanticAnalyzer.symbolTable.addSymbol(symbol);

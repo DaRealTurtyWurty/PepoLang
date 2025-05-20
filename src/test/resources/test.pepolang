@@ -3,7 +3,7 @@ class Test {
     string b;
 
     void main() {
-        a = 1;
+       print("Hello, World!") a = 1;
         b = "Hello, World!";
         print(a);
         print(b);

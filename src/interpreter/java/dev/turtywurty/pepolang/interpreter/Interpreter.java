@@ -5,10 +5,7 @@ import dev.turtywurty.pepolang.lexer.TokenType;
 import dev.turtywurty.pepolang.parser.*;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<Void> {
     private final Environment globals = new Environment();
@@ -92,6 +89,29 @@ public class Interpreter implements ExpressionVisitor<Object>, StatementVisitor<
                     throw new RuntimeError(null, "Argument must be a number!");
 
                 return Math.sqrt(num.doubleValue());
+            }
+
+            @Override
+            public String toString() {
+                return "<native fn>";
+            }
+        });
+
+        this.globals.defineFunction("input", new PepoCallable() {
+            @Override
+            public int arity() {
+                return 1;
+            }
+
+            @Override
+            public Object call(Interpreter interpreter, List<Object> arguments) {
+                try {
+                    String prompt = (String) arguments.getFirst();
+                    System.out.print(prompt);
+                    return new Scanner(System.in).nextLine();
+                } catch (Exception e) {
+                    throw new RuntimeError(null, "Error reading input: " + e.getMessage());
+                }
             }
 
             @Override

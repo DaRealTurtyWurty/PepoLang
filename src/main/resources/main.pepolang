@@ -1,0 +1,14 @@
+void main() {
+    string password = "beans";
+    while(true){
+        string input = input("Please enter your password\n");
+        if(input == password){
+            print("correct!");
+            break;
+        } else {
+            print("Please try again!");
+        }
+    }
+}
+
+main();

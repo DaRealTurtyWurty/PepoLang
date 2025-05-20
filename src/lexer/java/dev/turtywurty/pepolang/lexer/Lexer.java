@@ -86,7 +86,7 @@ public class Lexer {
         if (toReturn == null)
             toReturn = new Token(TokenType.EOF, this.reader.getPos());
 
-        System.out.println(toReturn);
+        //System.out.println(toReturn);
         return toReturn;
     }
 
